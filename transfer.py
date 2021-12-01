@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import settings
 import amclient
 import requests
@@ -45,7 +46,30 @@ for filename in folder:
         am.transfer_directory = transfer_folder + filename.name
         am.transfer_name = filename.name
 
+        # Start transfer
         package = am.create_package()
 
+        # Get transfer UUID
         am.transfer_uuid = package['id']
+        print('Transfer UUID: ' + am.transfer_uuid)
+
+        # Give transfer time to process
+        time.sleep(20)
+
+        # Get transfer status
         tstat = am.get_transfer_status()
+        print('Transfer Status: ' + tstat['status'])
+
+        # Make sure transfer is complete
+        if tstat['status'] == 'COMPLETE':
+
+            # Get SIP UUID
+            am.sip_uuid = tstat['sip_uuid']
+            print('SIP UUID: ' + am.sip_uuid)
+
+            # Give ingest time to process
+            time.sleep(30)
+
+            # Get ingest status
+            istat = am.get_ingest_status()
+            print('Ingest Status: ' + istat['status'])
