@@ -42,7 +42,7 @@ path = response.json()['path']
 folder = os.scandir(path + transfer_folder)
 
 for filename in folder:
-    if (filename.is_file() and filename.name.endswith('.zip')):
+    if filename.is_file() and filename.name.endswith('.zip'):
         am.transfer_directory = transfer_folder + filename.name
         am.transfer_name = filename.name
 
@@ -53,23 +53,73 @@ for filename in folder:
         am.transfer_uuid = package['id']
         print('Transfer UUID: ' + am.transfer_uuid)
 
-        # Give transfer time to process
-        time.sleep(20)
+        # Give transfer time to start
+        time.sleep(5)
 
         # Get transfer status
         tstat = am.get_transfer_status()
-        print('Transfer Status: ' + tstat['status'])
 
-        # Make sure transfer is complete
+        while True:
+            # Check if transfer is complete
+            if tstat['status'] == 'COMPLETE':
+
+                # If complete, exit loop
+                break
+
+            # If not complete, keep checking
+            else:
+                time.sleep(2)
+                tstat = am.get_transfer_status()
+
+                # When complete, exit loop
+                if tstat['status'] == 'COMPLETE':
+                    break
+
+                # TODO: Error handling for failed transfers
+
+                # Until it's complete, output status
+                else:
+                    print('Transfer Status: ' + tstat['status'])
+
+        # When transfer is complete, output status and continue
         if tstat['status'] == 'COMPLETE':
+            print('Transfer Status: ' + tstat['status'])
 
-            # Get SIP UUID
-            am.sip_uuid = tstat['sip_uuid']
-            print('SIP UUID: ' + am.sip_uuid)
+        # Get SIP UUID
+        am.sip_uuid = tstat['sip_uuid']
+        print('SIP UUID: ' + am.sip_uuid)
 
-            # Give ingest time to process
-            time.sleep(30)
+        # Give ingest time to start
+        time.sleep(5)
 
-            # Get ingest status
-            istat = am.get_ingest_status()
+        # Get ingest status
+        istat = am.get_ingest_status()
+
+        while True:
+            # Check if ingest is complete
+            if istat['status'] == 'COMPLETE':
+
+                # If complete, exit loop
+                break
+
+            # If not complete, keep checking
+            else:
+                time.sleep(2)
+                istat = am.get_ingest_status()
+
+                # When complete, exit loop
+                if istat['status'] == 'COMPLETE':
+                    break
+
+                # ToDo: Error handling for failed ingests
+
+                # Until it's complete, output status
+                else:
+                    print('Ingest Status: ' + istat['status'])
+
+        # When ingest complete, output status
+        if istat['status'] == 'COMPLETE':
             print('Ingest Status: ' + istat['status'])
+            print('AIP URL: ' + am.am_url + '/archival-storage/' + am.sip_uuid)
+
+    # TODO: Move ingested bags to another folder (or delete?)
