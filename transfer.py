@@ -81,7 +81,7 @@ def main():
 
                 while True:
                     # Check if transfer is complete
-                    if tstat['status'] == 'COMPLETE':
+                    if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
 
                         # If complete, exit loop
                         break
@@ -91,19 +91,23 @@ def main():
                         time.sleep(2)
                         tstat = am.get_transfer_status()
 
-                        # When complete, exit loop
-                        if tstat['status'] == 'COMPLETE':
+                        # When complete or failed, exit loop
+                        if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
                             break
 
-                        # TODO: Error handling for failed transfers
-
                         # Until it's complete, output status
-                        else:
-                            print('Transfer Status: ' + tstat['status'])
+                        # else:
+                        #     print('Transfer Status: ' + tstat['status'])
 
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
                     logging.warning('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                    # TODO: report status of transfer microservices
+                elif tstat['status'] == 'FAILED':
+                    logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
+                    # TODO: report status of transfer microservices
+                    # TODO: moved bag to failed-transfer folder
+                    break
 
                 # Get SIP UUID
                 am.sip_uuid = tstat['sip_uuid']
@@ -117,7 +121,7 @@ def main():
 
                 while True:
                     # Check if ingest is complete
-                    if istat['status'] == 'COMPLETE':
+                    if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
 
                         # If complete, exit loop
                         break
@@ -128,22 +132,24 @@ def main():
                         istat = am.get_ingest_status()
 
                         # When complete, exit loop
-                        if istat['status'] == 'COMPLETE':
+                        if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
                             break
 
-                        # ToDo: Error handling for failed ingests
-
                         # Until it's complete, output status
-                        else:
-                            print('Ingest Status: ' + istat['status'])
+                        # else:
+                        #     print('Ingest Status: ' + istat['status'])
 
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
-                    logging.warning('Ingestion of ' + am.sip_uuid + ' COMPLETE')
+                    logging.warning('Ingest of ' + am.sip_uuid + ' COMPLETE')
                     logging.warning(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
-
-            # TODO: Move ingested bags to another folder (or delete?)
+                    # TODO: report status of ingest microservices
+                    # TODO: move ingested bag file to completed folder
+                if istat['status'] == 'FAILED':
+                    logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
+                    # TODO: report status of ingest microservices
+                    # TODO: move bag to failed-ingest folder
 
     else:
         print('No bags found in folder')
