@@ -4,7 +4,9 @@ import time
 import settings
 import amclient
 import requests
+import logging
 
+# Initialize Archivematica Python Client
 am = amclient.AMClient()
 
 # Import AM API info from settings.py
@@ -26,6 +28,9 @@ am.transfer_type = settings.INSTITUTION[institution]['transfer_type']
 am.processing_config = settings.INSTITUTION[institution]['processing_config']
 
 transfer_folder = settings.INSTITUTION[institution]['transfer_folder']  # this is the directory to be watched
+
+# Set up logging to catch failed jobs
+logfile = institution + 'log.' + time.strftime('%m%d%H%M', time.localtime())
 
 # Iterate through the transfer folder for zipped bags
 
