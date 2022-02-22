@@ -29,118 +29,125 @@ am.processing_config = settings.INSTITUTION[institution]['processing_config']
 
 transfer_folder = settings.INSTITUTION[institution]['transfer_folder']  # this is the directory to be watched
 
-# Iterate through the transfer folder for zipped bags
 
-# Get path from location details
-url = am.ss_url + '/api/v2/location/' + am.transfer_source
-payload = {}
-headers = {
-  'Authorization': 'ApiKey ' + am.ss_user_name + ':' + am.ss_api_key,
-}
-response = requests.request("GET", url, headers=headers, data=payload)
-path = response.json()['path']
+def main():
+    # Iterate through the transfer folder for zipped bags
 
-# Check transfer folder for bags and ingest
-folder = path + transfer_folder
+    # Get path from location details
+    url = am.ss_url + '/api/v2/location/' + am.transfer_source
+    payload = {}
+    headers = {
+        'Authorization': 'ApiKey ' + am.ss_user_name + ':' + am.ss_api_key,
+    }
+    response = requests.request("GET", url, headers=headers, data=payload)
+    path = response.json()['path']
 
-if any(File.endswith('.zip') for File in os.listdir(folder)):
+    # Check transfer folder for bags and ingest
+    folder = path + transfer_folder
 
-    # Set up logging to catch failed jobs
-    logfile = 'logs/' + institution + 'log.' + time.strftime('%m%d%H%M', time.localtime())
-    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
-    lh = logging.FileHandler(logfile)
-    lh.setFormatter(formatter)
-    logging.getLogger().addHandler(lh)
-    logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
-    # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
-    # logging.getLogger().setLevel(logging.INFO)      #  Setting for debugging
+    if any(File.endswith('.zip') for File in os.listdir(folder)):
 
-    scanned_folder = os.scandir(folder)
+        # Set up logging to catch failed jobs
+        logfile = 'logs/' + institution + 'log.' + time.strftime('%m%d%H%M', time.localtime())
+        formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+        lh = logging.FileHandler(logfile)
+        lh.setFormatter(formatter)
+        logging.getLogger().addHandler(lh)
+        logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
+        # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
+        # logging.getLogger().setLevel(logging.INFO)      #  Setting for debugging
 
-    for filename in scanned_folder:
-        if filename.is_file() and filename.name.endswith('.zip'):
-            am.transfer_directory = transfer_folder + filename.name
-            am.transfer_name = filename.name
+        scanned_folder = os.scandir(folder)
 
-            logging.info('Transferring bag ' + am.transfer_name)
+        for filename in scanned_folder:
+            if filename.is_file() and filename.name.endswith('.zip'):
+                am.transfer_directory = transfer_folder + filename.name
+                am.transfer_name = filename.name
 
-            # Start transfer
-            package = am.create_package()
+                logging.info('Transferring bag ' + am.transfer_name)
 
-            # Get transfer UUID
-            am.transfer_uuid = package['id']
-            logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
+                # Start transfer
+                package = am.create_package()
 
-            # Give transfer time to start
-            time.sleep(5)
+                # Get transfer UUID
+                am.transfer_uuid = package['id']
+                logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
-            # Get transfer status
-            tstat = am.get_transfer_status()
+                # Give transfer time to start
+                time.sleep(5)
 
-            while True:
-                # Check if transfer is complete
-                if tstat['status'] == 'COMPLETE':
+                # Get transfer status
+                tstat = am.get_transfer_status()
 
-                    # If complete, exit loop
-                    break
-
-                # If not complete, keep checking
-                else:
-                    time.sleep(2)
-                    tstat = am.get_transfer_status()
-
-                    # When complete, exit loop
+                while True:
+                    # Check if transfer is complete
                     if tstat['status'] == 'COMPLETE':
+
+                        # If complete, exit loop
                         break
 
-                    # TODO: Error handling for failed transfers
-
-                    # Until it's complete, output status
+                    # If not complete, keep checking
                     else:
-                        print('Transfer Status: ' + tstat['status'])
+                        time.sleep(2)
+                        tstat = am.get_transfer_status()
 
-            # When transfer is complete, output status and continue
-            if tstat['status'] == 'COMPLETE':
-                logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                        # When complete, exit loop
+                        if tstat['status'] == 'COMPLETE':
+                            break
 
-            # Get SIP UUID
-            am.sip_uuid = tstat['sip_uuid']
-            logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
+                        # TODO: Error handling for failed transfers
 
-            # Give ingest time to start
-            time.sleep(5)
+                        # Until it's complete, output status
+                        else:
+                            print('Transfer Status: ' + tstat['status'])
 
-            # Get ingest status
-            istat = am.get_ingest_status()
+                # When transfer is complete, output status and continue
+                if tstat['status'] == 'COMPLETE':
+                    logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
 
-            while True:
-                # Check if ingest is complete
-                if istat['status'] == 'COMPLETE':
+                # Get SIP UUID
+                am.sip_uuid = tstat['sip_uuid']
+                logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
-                    # If complete, exit loop
-                    break
+                # Give ingest time to start
+                time.sleep(5)
 
-                # If not complete, keep checking
-                else:
-                    time.sleep(2)
-                    istat = am.get_ingest_status()
+                # Get ingest status
+                istat = am.get_ingest_status()
 
-                    # When complete, exit loop
+                while True:
+                    # Check if ingest is complete
                     if istat['status'] == 'COMPLETE':
+
+                        # If complete, exit loop
                         break
 
-                    # ToDo: Error handling for failed ingests
-
-                    # Until it's complete, output status
+                    # If not complete, keep checking
                     else:
-                        print('Ingest Status: ' + istat['status'])
+                        time.sleep(2)
+                        istat = am.get_ingest_status()
 
-            # When ingest complete, output status
-            if istat['status'] == 'COMPLETE':
-                logging.info('Ingestion of ' + am.sip_uuid + ' COMPLETE')
-                logging.info('AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
+                        # When complete, exit loop
+                        if istat['status'] == 'COMPLETE':
+                            break
 
-        # TODO: Move ingested bags to another folder (or delete?)
+                        # ToDo: Error handling for failed ingests
 
-else:
-    print('No bags found in folder')
+                        # Until it's complete, output status
+                        else:
+                            print('Ingest Status: ' + istat['status'])
+
+                # When ingest complete, output status
+                if istat['status'] == 'COMPLETE':
+                    logging.info('Ingestion of ' + am.sip_uuid + ' COMPLETE')
+                    logging.info(
+                        'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
+
+            # TODO: Move ingested bags to another folder (or delete?)
+
+    else:
+        print('No bags found in folder')
+
+
+if __name__ == '__main__':
+    main()
