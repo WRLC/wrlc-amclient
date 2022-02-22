@@ -96,8 +96,8 @@ def main():
                             break
 
                         # Until it's complete, output status
-                        # else:
-                        #     print('Transfer Status: ' + tstat['status'])
+                        else:
+                            print('Transfer Status: ' + tstat['status'])
 
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
@@ -136,8 +136,8 @@ def main():
                             break
 
                         # Until it's complete, output status
-                        # else:
-                        #     print('Ingest Status: ' + istat['status'])
+                        else:
+                            print('Ingest Status: ' + istat['status'])
 
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
