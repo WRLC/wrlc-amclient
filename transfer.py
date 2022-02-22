@@ -64,14 +64,14 @@ def main():
                 am.transfer_directory = transfer_folder + filename.name
                 am.transfer_name = filename.name
 
-                logging.info('Transferring bag ' + am.transfer_name)
+                logging.warning('Transferring bag ' + am.transfer_name)
 
                 # Start transfer
                 package = am.create_package()
 
                 # Get transfer UUID
                 am.transfer_uuid = package['id']
-                logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
+                logging.warning(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
                 # Give transfer time to start
                 time.sleep(5)
@@ -103,11 +103,11 @@ def main():
 
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
-                    logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                    logging.warning('Transfer of ' + am.transfer_uuid + ' COMPLETE')
 
                 # Get SIP UUID
                 am.sip_uuid = tstat['sip_uuid']
-                logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
+                logging.warning(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
                 # Give ingest time to start
                 time.sleep(5)
@@ -139,8 +139,8 @@ def main():
 
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
-                    logging.info('Ingestion of ' + am.sip_uuid + ' COMPLETE')
-                    logging.info(
+                    logging.warning('Ingestion of ' + am.sip_uuid + ' COMPLETE')
+                    logging.warning(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
 
             # TODO: Move ingested bags to another folder (or delete?)
