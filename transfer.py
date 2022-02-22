@@ -31,6 +31,13 @@ transfer_folder = settings.INSTITUTION[institution]['transfer_folder']  # this i
 
 # Set up logging to catch failed jobs
 logfile = institution + 'log.' + time.strftime('%m%d%H%M', time.localtime())
+formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+lh = logging.FileHandler(logfile)
+lh.setFormatter(formatter)
+logging.getLogger().addHandler(lh)
+logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
+# logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
+# logging.getLogger().setLevel(logging.INFO)      #  Setting for debugging
 
 # Iterate through the transfer folder for zipped bags
 
@@ -51,12 +58,14 @@ for filename in folder:
         am.transfer_directory = transfer_folder + filename.name
         am.transfer_name = filename.name
 
+        logging.info('Transferring bag ' + am.transfer_name)
+
         # Start transfer
         package = am.create_package()
 
         # Get transfer UUID
         am.transfer_uuid = package['id']
-        print('Transfer UUID: ' + am.transfer_uuid)
+        logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
         # Give transfer time to start
         time.sleep(5)
@@ -88,11 +97,11 @@ for filename in folder:
 
         # When transfer is complete, output status and continue
         if tstat['status'] == 'COMPLETE':
-            print('Transfer Status: ' + tstat['status'])
+            logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
 
         # Get SIP UUID
         am.sip_uuid = tstat['sip_uuid']
-        print('SIP UUID: ' + am.sip_uuid)
+        logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
         # Give ingest time to start
         time.sleep(5)
@@ -124,7 +133,7 @@ for filename in folder:
 
         # When ingest complete, output status
         if istat['status'] == 'COMPLETE':
-            print('Ingest Status: ' + istat['status'])
-            print('AIP URL: ' + am.am_url + '/archival-storage/' + am.sip_uuid)
+            logging.info('Ingestion of ' + am.sip_uuid + ' COMPLETE')
+            logging.info('AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
 
     # TODO: Move ingested bags to another folder (or delete?)
