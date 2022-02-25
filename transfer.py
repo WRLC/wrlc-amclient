@@ -27,7 +27,7 @@ am.transfer_source = settings.INSTITUTION[institution]['transfer_source']
 am.transfer_type = settings.INSTITUTION[institution]['transfer_type']
 am.processing_config = settings.INSTITUTION[institution]['processing_config']
 
-transfer_folder = settings.INSTITUTION[institution]['transfer_folder']  # this is the directory to be watched
+transfer_folder = '/' + institution + 'islandora/transfers/'  # this is the directory to be watched
 
 
 def main():
