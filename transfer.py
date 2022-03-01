@@ -30,7 +30,7 @@ am.processing_config = settings.INSTITUTION[institution]['processing_config']
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
 
 
-def job_microservices(uuid):
+def job_microservices(uuid, job_stat):
     am.unit_uuid = uuid
     jobs = am.get_jobs()
     for job in jobs:
@@ -38,10 +38,16 @@ def job_microservices(uuid):
         task = job['name']
         status = job['status']
         message = ms + ': ' + task + ' ' + status
-        if status == 'FAILED':
-            logging.error(message)
+        if job_stat == 'FAILED':
+            if status == 'FAILED':
+                logging.error(message)
+            else:
+                logging.info(message)
         else:
-            logging.warning(message)
+            if status == 'FAILED':
+                logging.warning(message)
+            else:
+                logging.info(message)
 
 
 def main():
@@ -67,9 +73,9 @@ def main():
         lh = logging.FileHandler(logfile)
         lh.setFormatter(formatter)
         logging.getLogger().addHandler(lh)
-        logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
+        #logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
         # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
-        # logging.getLogger().setLevel(logging.INFO)      #  Setting for debugging
+        logging.getLogger().setLevel(logging.INFO)      #  Setting for debugging
 
         scanned_folder = os.scandir(folder)
 
@@ -78,14 +84,14 @@ def main():
                 am.transfer_directory = transfer_folder + filename.name
                 am.transfer_name = filename.name
 
-                logging.warning('Transferring bag ' + am.transfer_name)
+                logging.info('Transferring bag ' + am.transfer_name)
 
                 # Start transfer
                 package = am.create_package()
 
                 # Get transfer UUID
                 am.transfer_uuid = package['id']
-                logging.warning(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
+                logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
                 # Give transfer time to start
                 time.sleep(5)
@@ -102,7 +108,7 @@ def main():
 
                     # If not complete, keep checking
                     else:
-                        time.sleep(2)
+                        time.sleep(10)
                         tstat = am.get_transfer_status()
 
                         # When complete or failed, exit loop
@@ -111,14 +117,14 @@ def main():
 
                         # Until it's complete, output status
                         else:
-                            print('Transfer Status: ' + tstat['status'])
+                            logging.info('Transfer Status: ' + tstat['status'])
 
                 # Report status of transfer microservices
-                job_microservices(am.transfer_uuid)
+                job_microservices(am.transfer_uuid, tstat['status'])
 
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
-                    logging.warning('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                    logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
                     # TODO: moved bag to failed-transfer folder
@@ -126,7 +132,7 @@ def main():
 
                 # Get SIP UUID
                 am.sip_uuid = tstat['sip_uuid']
-                logging.warning(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
+                logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
                 # Give ingest time to start
                 time.sleep(5)
@@ -143,7 +149,7 @@ def main():
 
                     # If not complete, keep checking
                     else:
-                        time.sleep(2)
+                        time.sleep(10)
                         istat = am.get_ingest_status()
 
                         # When complete, exit loop
@@ -152,15 +158,15 @@ def main():
 
                         # Until it's complete, output status
                         else:
-                            print('Ingest Status: ' + istat['status'])
+                            logging.info('Ingest Status: ' + istat['status'])
 
                 # TODO: report status of ingest microservices
-                job_microservices(am.sip_uuid)
+                job_microservices(am.sip_uuid, istat['status'])
 
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
-                    logging.warning('Ingest of ' + am.sip_uuid + ' COMPLETE')
-                    logging.warning(
+                    logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
+                    logging.info(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
                     # TODO: move ingested bag file to completed folder
                 if istat['status'] == 'FAILED':
