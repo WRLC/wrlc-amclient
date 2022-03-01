@@ -75,9 +75,6 @@ def main():
     # Check transfer folder for bags and ingest
     folder = path + transfer_folder
 
-    if settings.local_prefix:
-        folder = settings.local_prefix + folder
-
     if any(File.endswith('.zip') for File in os.listdir(folder)):
 
         # Set up logging to catch failed jobs
