@@ -5,6 +5,7 @@ import settings
 import amclient
 import requests
 import logging
+import shutil
 
 # Initialize Archivematica Python Client
 am = amclient.AMClient()
@@ -50,6 +51,15 @@ def job_microservices(uuid, job_stat):
                 logging.info(message)
 
 
+def move_bag(file, status):
+    status_str = status.lower()
+    if status == 'COMPLETE':
+        status_str = status_str + 'd'
+    dest_path = file.replace('/transfer/', '/' + status_str + '/')
+    shutil.move(file, dest_path)
+    logging.warning(am.transfer_name + ' moved to ' + status_str + ' folder')
+
+
 def main():
     # Iterate through the transfer folder for zipped bags
 
@@ -64,6 +74,9 @@ def main():
 
     # Check transfer folder for bags and ingest
     folder = path + transfer_folder
+
+    if settings.local_prefix:
+        folder = settings.local_prefix + folder
 
     if any(File.endswith('.zip') for File in os.listdir(folder)):
 
@@ -127,7 +140,8 @@ def main():
                     logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
-                    # TODO: moved bag to failed-transfer folder
+                    # Move bag to failed-transfer folder
+                    move_bag(folder + filename.name, tstat['status'])
                     break
 
                 # Get SIP UUID
@@ -168,10 +182,11 @@ def main():
                     logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
                     logging.info(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
-                    # TODO: move ingested bag file to completed folder
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
-                    # TODO: move bag to failed-ingest folder
+                # Move bag to completed/failed folder
+                if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
+                    move_bag(folder + filename.name, istat['status'])
 
     else:
         print('No bags found in folder')
