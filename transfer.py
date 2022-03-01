@@ -160,7 +160,7 @@ def main():
                         else:
                             logging.info('Ingest Status: ' + istat['status'])
 
-                # TODO: report status of ingest microservices
+                # Report status of ingest microservices
                 job_microservices(am.sip_uuid, istat['status'])
 
                 # When ingest complete, output status
