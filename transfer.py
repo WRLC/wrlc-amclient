@@ -113,8 +113,8 @@ def main():
                         else:
                             print('Transfer Status: ' + tstat['status'])
 
-                # TODO: report status of transfer microservices
-
+                # Report status of transfer microservices
+                job_microservices(am.transfer_uuid)
 
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
@@ -154,16 +154,17 @@ def main():
                         else:
                             print('Ingest Status: ' + istat['status'])
 
+                # TODO: report status of ingest microservices
+                job_microservices(am.sip_uuid)
+
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
                     logging.warning('Ingest of ' + am.sip_uuid + ' COMPLETE')
                     logging.warning(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
-                    # TODO: report status of ingest microservices
                     # TODO: move ingested bag file to completed folder
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
-                    # TODO: report status of ingest microservices
                     # TODO: move bag to failed-ingest folder
 
     else:
