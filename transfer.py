@@ -30,6 +30,20 @@ am.processing_config = settings.INSTITUTION[institution]['processing_config']
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
 
 
+def job_microservices(uuid):
+    am.unit_uuid = uuid
+    jobs = am.get_jobs()
+    for job in jobs:
+        ms = job['microservice']
+        task = job['name']
+        status = job['status']
+        message = ms + ': ' + task + ' ' + status
+        if status == 'FAILED':
+            logging.error(message)
+        else:
+            logging.warning(message)
+
+
 def main():
     # Iterate through the transfer folder for zipped bags
 
@@ -99,13 +113,14 @@ def main():
                         else:
                             print('Transfer Status: ' + tstat['status'])
 
+                # TODO: report status of transfer microservices
+
+
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
                     logging.warning('Transfer of ' + am.transfer_uuid + ' COMPLETE')
-                    # TODO: report status of transfer microservices
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
-                    # TODO: report status of transfer microservices
                     # TODO: moved bag to failed-transfer folder
                     break
 
