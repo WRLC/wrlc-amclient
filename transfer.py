@@ -52,6 +52,8 @@ def job_microservices(uuid, job_stat):
 
 
 def move_bag(file, status):
+    if settings.local_prefix:
+        file = settings.local_prefix + file
     status_str = status.lower()
     dest_path = file.replace('/transfer/', '/' + status_str + '/')
     shutil.move(file, dest_path)
@@ -72,6 +74,9 @@ def main():
 
     # Check transfer folder for bags and ingest
     folder = path + transfer_folder
+
+    if settings.local_prefix:
+        folder = settings.local_prefix + folder
 
     if any(File.endswith('.zip') for File in os.listdir(folder)):
 
