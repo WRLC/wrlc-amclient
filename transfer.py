@@ -30,6 +30,20 @@ am.processing_config = settings.INSTITUTION[institution]['processing_config']
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
 
 
+def job_microservices(uuid):
+    am.unit_uuid = uuid
+    jobs = am.get_jobs()
+    for job in jobs:
+        ms = job['microservice']
+        task = job['name']
+        status = job['status']
+        message = ms + ': ' + task + ' ' + status
+        if status == 'FAILED':
+            logging.error(message)
+        else:
+            logging.warning(message)
+
+
 def main():
     # Iterate through the transfer folder for zipped bags
 
@@ -99,13 +113,14 @@ def main():
                         else:
                             print('Transfer Status: ' + tstat['status'])
 
+                # Report status of transfer microservices
+                job_microservices(am.transfer_uuid)
+
                 # When transfer is complete, output status and continue
                 if tstat['status'] == 'COMPLETE':
                     logging.warning('Transfer of ' + am.transfer_uuid + ' COMPLETE')
-                    # TODO: report status of transfer microservices
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
-                    # TODO: report status of transfer microservices
                     # TODO: moved bag to failed-transfer folder
                     break
 
@@ -139,16 +154,17 @@ def main():
                         else:
                             print('Ingest Status: ' + istat['status'])
 
+                # TODO: report status of ingest microservices
+                job_microservices(am.sip_uuid)
+
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
                     logging.warning('Ingest of ' + am.sip_uuid + ' COMPLETE')
                     logging.warning(
                         'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
-                    # TODO: report status of ingest microservices
                     # TODO: move ingested bag file to completed folder
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
-                    # TODO: report status of ingest microservices
                     # TODO: move bag to failed-ingest folder
 
     else:
