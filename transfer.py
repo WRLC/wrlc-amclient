@@ -52,12 +52,12 @@ def job_microservices(uuid, job_stat):
 
 
 def move_bag(file, status):
-    if settings.local_prefix:
-        file = settings.local_prefix + file
     status_str = status.lower()
+    if status == 'COMPLETE':
+        status_str = status_str + 'd'
     dest_path = file.replace('/transfer/', '/' + status_str + '/')
     shutil.move(file, dest_path)
-    logging.warning(am.transfer_name + 'moved to ' + status_str + ' folder')
+    logging.warning(am.transfer_name + ' moved to ' + status_str + ' folder')
 
 
 def main():
@@ -141,7 +141,7 @@ def main():
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
                     # Move bag to failed-transfer folder
-                    move_bag(am.transfer_directory, tstat['status'])
+                    move_bag(folder + filename.name, tstat['status'])
                     break
 
                 # Get SIP UUID
@@ -186,7 +186,7 @@ def main():
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
                 # Move bag to completed/failed folder
                 if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
-                    move_bag(am.transfer_directory, istat['status'])
+                    move_bag(folder + filename.name, istat['status'])
 
     else:
         print('No bags found in folder')
