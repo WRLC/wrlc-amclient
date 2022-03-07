@@ -1,4 +1,5 @@
-am_url = 'place Archivematic URL here'  # the URL to the AM Dashboard
+am_url = 'place Archivematic URL here'  # the local server URL to the AM Dashboard
+am_pub_url = 'place public Archivematica URL here'  # the public URL to the AM Dashboard
 ss_url = 'place Storage Service URL here'  # the URL to the SS
 
 am_api_key = 'place Archivematica key here'  # a r/w AM Dashboard API key

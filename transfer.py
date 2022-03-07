@@ -103,8 +103,9 @@ def main():
                 am.transfer_uuid = package['id']
                 logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
+                # TODO: handle request errors for status when checked too soon
                 # Give transfer time to start
-                time.sleep(5)
+                time.sleep(10)
 
                 # Get transfer status
                 tstat = am.get_transfer_status()
@@ -145,8 +146,9 @@ def main():
                 am.sip_uuid = tstat['sip_uuid']
                 logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
+                # TODO: handle request errors for status when checked too soon
                 # Give ingest time to start
-                time.sleep(5)
+                time.sleep(10)
 
                 # Get ingest status
                 istat = am.get_ingest_status()
@@ -178,7 +180,7 @@ def main():
                 if istat['status'] == 'COMPLETE':
                     logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
                     logging.info(
-                        'AIP URI for ' + am.transfer_name + ': ' + am.am_url + '/archival-storage/' + am.sip_uuid)
+                        'AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url + '/archival-storage/' + am.sip_uuid)
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
                 # Move bag to completed/failed folder
