@@ -71,6 +71,7 @@ def main():
     }
     try:
         response = requests.request("GET", url, headers=headers, data=payload)
+        print(response)
         path = response.json()['path']
     except Exception as e:
         print(e)
