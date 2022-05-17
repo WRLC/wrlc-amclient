@@ -69,8 +69,12 @@ def main():
     headers = {
         'Authorization': 'ApiKey ' + am.ss_user_name + ':' + am.ss_api_key,
     }
-    response = requests.request("GET", url, headers=headers, data=payload)
-    path = response.json()['path']
+    try:
+        response = requests.request("GET", url, headers=headers, data=payload)
+        path = response.json()['path']
+    except Exception as e:
+        print(e)
+        sys.exit()
 
     # Check transfer folder for bags and ingest
     folder = path + transfer_folder
