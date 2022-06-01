@@ -57,10 +57,13 @@ def move_bag(file, status):
         status_str = status_str + 'd'
     dest_path = file.replace('/transfer/', '/' + status_str + '/')
     shutil.move(file, dest_path)
-    logging.warning(am.transfer_name + ' moved to ' + status_str + ' folder')
+    logging.info(am.transfer_name + ' moved to ' + status_str + ' folder')
 
 
 def main():
+    # TODO: check processing directory for current transfers
+    # TODO: if processing not empty, don't run
+    # TODO: move transfers to processing directory
     # Iterate through the transfer folder for zipped bags
 
     # Get path from location details
@@ -82,7 +85,7 @@ def main():
     if any(File.endswith('.zip') for File in os.listdir(folder)):
 
         # Set up logging to catch failed jobs
-        logfile = 'logs/' + institution + 'log.' + time.strftime('%m%d%H%M', time.localtime())
+        logfile = 'logs/' + institution + time.strftime('%m%d%H%M', time.localtime()) + '.log'
         formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
         lh = logging.FileHandler(logfile)
         lh.setFormatter(formatter)

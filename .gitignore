@@ -2,4 +2,4 @@
 venv
 settings.py
 __pycache__
-logs/*log.*
+logs/*.log*
