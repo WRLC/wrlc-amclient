@@ -111,7 +111,7 @@ def main():
 
             for filename in scanned_folder:
                 if filename.is_file() and filename.name.endswith('.zip'):
-                    am.transfer_directory = transfer_folder + filename.name
+                    am.transfer_directory = processing_folder + filename.name
                     am.transfer_name = filename.name
 
                     logging.info('Transferring bag ' + am.transfer_name)
