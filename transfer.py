@@ -29,7 +29,7 @@ am.transfer_type = settings.INSTITUTION[institution]['transfer_type']
 am.processing_config = settings.INSTITUTION[institution]['processing_config']
 
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
-processing_folder = '/' + institution + 'islandora/processing'  # this is the directory for active transfers
+processing_folder = '/' + institution + 'islandora/processing/'  # this is the directory for active transfers
 
 
 def job_microservices(uuid, job_stat):
