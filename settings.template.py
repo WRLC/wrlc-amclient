@@ -9,10 +9,9 @@ ss_api_key = 'place Storage Service key here'  # a r/w AM Storage Service API ke
 ss_user_name = 'place Storage Service username here'  # the username associated with the SS API key
 
 INSTITUTION = {
-    'code': '',  # the two or three letter WRLC institution code
-    'transfer_source': '',  # the UUID of the institution's source location
-    'transfer_type': '',  # the bag/folder type of the transfer (e.g., 'zipped bag')
-    'processing_config': '',  # the name of the AM Dashboard processing config for the institution
+    'instCode': {  # the two or three letter WRLC institution code
+        'transfer_source': '',  # the UUID of the institution's source location
+        'transfer_type': '',  # the bag/folder type of the transfer (e.g., 'zipped bag')
+        'processing_config': '',  # the name of the AM Dashboard processing config for the institution
+    },
 }
-
-local_prefix = ''  # for local development env
