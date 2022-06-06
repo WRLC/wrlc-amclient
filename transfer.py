@@ -20,13 +20,13 @@ am.ss_api_key = settings.ss_api_key
 am.ss_user_name = settings.ss_user_name
 
 # Set institution code from user input
-institution = sys.argv[1]
+institution = settings.INSTITUTION['code']
 # institution = settings.INSTITUTION[institution]
 
 # Import institutional variables from settings.py
-am.transfer_source = settings.INSTITUTION[institution]['transfer_source']
-am.transfer_type = settings.INSTITUTION[institution]['transfer_type']
-am.processing_config = settings.INSTITUTION[institution]['processing_config']
+am.transfer_source = settings.INSTITUTION['transfer_source']
+am.transfer_type = settings.INSTITUTION['transfer_type']
+am.processing_config = settings.INSTITUTION['processing_config']
 
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
 processing_folder = '/' + institution + 'islandora/processing/'  # this is the directory for active transfers
@@ -66,6 +66,8 @@ def move_bag(file, status, filename):
 
 def main():
     # Iterate through the transfer folder for zipped bags
+    print(institution)
+    sys.exit()
 
     # Get path from location details
     url = am.ss_url + '/api/v2/location/' + am.transfer_source
