@@ -92,7 +92,8 @@ def main():
             print('Active transfers underway. Aborting.')
         else:  # If no active transfers, start transfers
             # Set up logging to catch failed jobs
-            logfile = 'logs/' + institution + time.strftime('%m%d%H%M', time.localtime()) + '.log'
+            logdir = settings.logfile_dir
+            logfile = logdir + '/' + institution + time.strftime('%m%d%H%M', time.localtime()) + '.log'
             formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
             lh = logging.FileHandler(logfile)
             lh.setFormatter(formatter)
