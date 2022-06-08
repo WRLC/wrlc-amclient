@@ -15,3 +15,7 @@ INSTITUTION = {
         'processing_config': '',  # the name of the AM Dashboard processing config for the institution
     },
 }
+
+logfile_dir = ''  # relative/absolute path to directory where log files will be saved
+
+local_prefix = ''  # for local development environments
