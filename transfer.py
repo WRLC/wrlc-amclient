@@ -126,7 +126,6 @@ def main():
                 # Make sure the file is a zipped bag
                 if filename.is_file() and filename.name.endswith('.zip'):
                     am.transfer_directory = processing + filename.name
-                    print(am.transfer_directory)
                     am.transfer_name = filename.name
 
                     logging.info('Transferring bag ' + am.transfer_name)
