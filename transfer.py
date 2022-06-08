@@ -20,8 +20,15 @@ am.ss_api_key = settings.ss_api_key
 am.ss_user_name = settings.ss_user_name
 
 # Set institution code from user input
-institution = sys.argv[1]
-# institution = settings.INSTITUTION[institution]
+if len(sys.argv) > 1:
+    if sys.argv[1] in settings.INSTITUTION:
+        institution = sys.argv[1]
+    else:
+        print('Institution code in command not found in settings.py', file=sys.stderr)
+        sys.exit()
+else:
+    print('Institution not defined in command', file=sys.stderr)
+    sys.exit()
 
 # Import institutional variables from settings.py
 am.transfer_source = settings.INSTITUTION[institution]['transfer_source']
@@ -77,19 +84,23 @@ def main():
         response = requests.request("GET", url, headers=headers, data=payload)
         path = settings.local_prefix + response.json()['path']
     except Exception as e:
-        print(e)
+        print('Could not get path for SS location: ' + e, file=sys.stderr)
         sys.exit()
 
-    # Check transfer folder for bags and ingest
-    transfer = path + transfer_folder
-    processing = path + processing_folder
+    # Define transfer and processing folders relative to SS location path
+    transfer = settings.local_prefix + path + transfer_folder
+    processing = settings.local_prefix + path + processing_folder
+
+    # Initialize completed and failed counting processed/failed bags
+    completed = 0
+    failed = 0
 
     # Check transfer folder for zipped bags
     if any(File.endswith('.zip') for File in os.listdir(transfer)):
 
         # Check processing folder for active transfers
         if any(File.endswith('.zip') for File in os.listdir(processing)):  # If active transfers, abort
-            print('Active transfers underway. Aborting.')
+            print('Active transfers underway. Aborting.', file=sys.stderr)
         else:  # If no active transfers, start transfers
             # Set up logging to catch failed jobs
             logdir = settings.logfile_dir
@@ -102,7 +113,7 @@ def main():
             # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
             logging.getLogger().setLevel(logging.INFO)  # Setting for debugging
 
-            # TODO: move transfers to processing directory
+            # move transfers to processing directory
             source_folder = os.scandir(transfer)
             for filename in source_folder:
                 if filename.is_file() and filename.name.endswith('.zip'):
@@ -110,7 +121,10 @@ def main():
 
             scanned_folder = os.scandir(processing)
 
+            # Iterate through files in processing folder
             for filename in scanned_folder:
+
+                # Make sure the file is a zipped bag
                 if filename.is_file() and filename.name.endswith('.zip'):
                     am.transfer_directory = processing_folder + filename.name
                     am.transfer_name = filename.name
@@ -118,18 +132,32 @@ def main():
                     logging.info('Transferring bag ' + am.transfer_name)
 
                     # Start transfer
-                    package = am.create_package()
+                    try:
+                        package = am.create_package()
+
+                    # If API call fails, log error, move bag to failed folder, and increase failed count
+                    except Exception as e:
+                        logging.error('Couldn\'t start initiate transfer: ' + str(e))
+                        move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                        failed = failed + 1
 
                     # Get transfer UUID
                     am.transfer_uuid = package['id']
                     logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
 
-                    # TODO: handle request errors for status when checked too soon
                     # Give transfer time to start
                     time.sleep(10)
 
                     # Get transfer status
-                    tstat = am.get_transfer_status()
+                    try:
+                        tstat = am.get_transfer_status()
+
+                    # If transfer status not found, log error, move bag to failed folder, and increase failed count
+                    except Exception as e:
+                        logging.error('Could not get transfer status of ' + am.transfer_name + ': ' + str(e))
+                        move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                        failed = failed + 1
+                        break
 
                     while True:
                         # Check if transfer is complete
@@ -154,25 +182,34 @@ def main():
                     # Report status of transfer microservices
                     job_microservices(am.transfer_uuid, tstat['status'])
 
-                    # When transfer is complete, output status and continue
+                    # When transfer is complete, log status and continue
                     if tstat['status'] == 'COMPLETE':
                         logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+
+                    # If transfer fails, log failure, move bag to failed folder,and increase failed count
                     elif tstat['status'] == 'FAILED':
                         logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
-                        # Move bag to failed-transfer folder
                         move_bag(processing + filename.name, tstat['status'], am.transfer_name)
+                        failed = failed + 1
                         break
 
                     # Get SIP UUID
                     am.sip_uuid = tstat['sip_uuid']
                     logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
-                    # TODO: handle request errors for status when checked too soon
                     # Give ingest time to start
                     time.sleep(10)
 
                     # Get ingest status
-                    istat = am.get_ingest_status()
+                    try:
+                        istat = am.get_ingest_status()
+
+                    # If ingest status not found, log error, move bag to failed folder, and increase failed count
+                    except Exception as e:
+                        logging.error('Could not get ingest status of ' + am.transfer_name + ': ' + str(e))
+                        move_bag(processing + filename.name, 'failed', am.transfer_name)
+                        failed = failed + 1
+                        break
 
                     while True:
                         # Check if ingest is complete
@@ -204,14 +241,21 @@ def main():
                             'AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
                             '/archival-storage/' + am.sip_uuid
                         )
+                        completed = completed + 1
+                    # If ingest failed, log failure and increase failed count
                     if istat['status'] == 'FAILED':
                         logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
+                        failed = failed + 1
                     # Move bag to completed/failed folder
                     if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
+            # Log final count of completed and failed bags
+            logging.info(str(completed) + ' bags transferred')
+            logging.info(str(failed) + ' bags failed')
+
     else:
-        print('No bags found in folder')
+        print('No bags found in folder\n', file=sys.stdout)
 
 
 if __name__ == '__main__':
