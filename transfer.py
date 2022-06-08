@@ -24,10 +24,10 @@ if len(sys.argv) > 1:
     if sys.argv[1] in settings.INSTITUTION:
         institution = sys.argv[1]
     else:
-        print('Institution code in command not found in settings.py', file=sys.stderr)
+        print('Institution code in command not found in settings.py\n', file=sys.stderr)
         sys.exit()
 else:
-    print('Institution not defined in command', file=sys.stderr)
+    print('Institution not defined in command\n', file=sys.stderr)
     sys.exit()
 
 # Import institutional variables from settings.py
@@ -84,12 +84,12 @@ def main():
         response = requests.request("GET", url, headers=headers, data=payload)
         path = settings.local_prefix + response.json()['path']
     except Exception as e:
-        print('Could not get path for SS location: ' + e, file=sys.stderr)
+        print('Could not get path for SS location: ' + str(e), file=sys.stderr)
         sys.exit()
 
     # Define transfer and processing folders relative to SS location path
-    transfer = settings.local_prefix + path + transfer_folder
-    processing = settings.local_prefix + path + processing_folder
+    transfer = path + transfer_folder
+    processing = path + processing_folder
 
     # Initialize completed and failed counting processed/failed bags
     completed = 0
@@ -123,23 +123,16 @@ def main():
 
             # Iterate through files in processing folder
             for filename in scanned_folder:
-
                 # Make sure the file is a zipped bag
                 if filename.is_file() and filename.name.endswith('.zip'):
-                    am.transfer_directory = processing_folder + filename.name
+                    am.transfer_directory = processing + filename.name
+                    print(am.transfer_directory)
                     am.transfer_name = filename.name
 
                     logging.info('Transferring bag ' + am.transfer_name)
 
                     # Start transfer
-                    try:
-                        package = am.create_package()
-
-                    # If API call fails, log error, move bag to failed folder, and increase failed count
-                    except Exception as e:
-                        logging.error('Couldn\'t start initiate transfer: ' + str(e))
-                        move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                        failed = failed + 1
+                    package = am.create_package()
 
                     # Get transfer UUID
                     am.transfer_uuid = package['id']
@@ -250,9 +243,9 @@ def main():
                     if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
-            # Log final count of completed and failed bags
-            logging.info(str(completed) + ' bags transferred')
-            logging.info(str(failed) + ' bags failed')
+            # Output final count of completed and failed bags
+            print(str(completed) + ' bags transferred\n', file=sys.stdout)
+            print(str(failed) + ' bags failed\n', file=sys.stdout)
 
     else:
         print('No bags found in folder\n', file=sys.stdout)
