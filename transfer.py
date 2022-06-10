@@ -24,10 +24,10 @@ if len(sys.argv) > 1:
     if sys.argv[1] in settings.INSTITUTION:
         institution = sys.argv[1]
     else:
-        print('Institution code in command not found in settings.py\n', file=sys.stderr)
+        print('Institution code in command not found in settings.py', file=sys.stderr)
         sys.exit()
 else:
-    print('Institution not defined in command\n', file=sys.stderr)
+    print('Institution not defined in command', file=sys.stderr)
     sys.exit()
 
 # Import institutional variables from settings.py
@@ -141,35 +141,36 @@ def main():
                     time.sleep(10)
 
                     # Get transfer status
-                    try:
-                        tstat = am.get_transfer_status()
+                    tstat = am.get_transfer_status()
 
                     # If transfer status not found, log error, move bag to failed folder, and increase failed count
-                    except Exception as e:
-                        logging.error('Could not get transfer status of ' + am.transfer_name + ': ' + str(e))
+                    if isinstance(tstat, int):
+                        logging.error('Could not get transfer status of ' + am.transfer_name +
+                                      '; check AM MCPServer.log and SS storage_service.log')
                         move_bag(processing + filename.name, 'FAILED', am.transfer_name)
                         failed = failed + 1
                         break
 
-                    while True:
-                        # Check if transfer is complete
-                        if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
-
-                            # If complete, exit loop
-                            break
-
-                        # If not complete, keep checking
-                        else:
-                            time.sleep(10)
-                            tstat = am.get_transfer_status()
-
-                            # When complete or failed, exit loop
+                    else:
+                        while True:
+                            # Check if transfer is complete
                             if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
+
+                                # If complete, exit loop
                                 break
 
-                            # Until it's complete, output status
+                            # If not complete, keep checking
                             else:
-                                logging.info('Transfer Status: ' + tstat['status'])
+                                time.sleep(10)
+                                tstat = am.get_transfer_status()
+
+                                # When complete or failed, exit loop
+                                if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
+                                    break
+
+                                # Until it's complete, output status
+                                else:
+                                    logging.info('Transfer Status: ' + tstat['status'])
 
                     # Report status of transfer microservices
                     job_microservices(am.transfer_uuid, tstat['status'])
@@ -193,35 +194,36 @@ def main():
                     time.sleep(10)
 
                     # Get ingest status
-                    try:
-                        istat = am.get_ingest_status()
+                    istat = am.get_ingest_status()
 
                     # If ingest status not found, log error, move bag to failed folder, and increase failed count
-                    except Exception as e:
-                        logging.error('Could not get ingest status of ' + am.transfer_name + ': ' + str(e))
+                    if isinstance(istat, int):
+                        logging.error('Could not get ingest status of ' + am.transfer_name
+                                      + '; check AM MCPServer.log and SS storage_service.log')
                         move_bag(processing + filename.name, 'failed', am.transfer_name)
                         failed = failed + 1
                         break
 
-                    while True:
-                        # Check if ingest is complete
-                        if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
-
-                            # If complete, exit loop
-                            break
-
-                        # If not complete, keep checking
-                        else:
-                            time.sleep(10)
-                            istat = am.get_ingest_status()
-
-                            # When complete, exit loop
+                    else:
+                        while True:
+                            # Check if ingest is complete
                             if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
+
+                                # If complete, exit loop
                                 break
 
-                            # Until it's complete, output status
+                            # If not complete, keep checking
                             else:
-                                logging.info('Ingest Status: ' + istat['status'])
+                                time.sleep(10)
+                                istat = am.get_ingest_status()
+
+                                # When complete, exit loop
+                                if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
+                                    break
+
+                                # Until it's complete, output status
+                                else:
+                                    logging.info('Ingest Status: ' + istat['status'])
 
                     # Report status of ingest microservices
                     job_microservices(am.sip_uuid, istat['status'])
@@ -243,11 +245,11 @@ def main():
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
             # Output final count of completed and failed bags
-            print(str(completed) + ' bags transferred\n', file=sys.stdout)
-            print(str(failed) + ' bags failed\n', file=sys.stdout)
+            print(str(completed) + ' bags transferred', file=sys.stdout)
+            print(str(failed) + ' bags failed', file=sys.stdout)
 
     else:
-        print('No bags found in folder\n', file=sys.stdout)
+        print('No bags found in folder', file=sys.stdout)
 
 
 if __name__ == '__main__':
