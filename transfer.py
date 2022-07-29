@@ -236,6 +236,38 @@ def main():
                             '/archival-storage/' + am.sip_uuid
                         )
                         completed = completed + 1
+
+                        # TODO: On completion, log in pawdb
+                        # INSERT INTO collection (
+                        #     pid,
+                        #     label,
+                        #     parentCollection
+                        # ) VALUES ()
+
+                        # INSERT INTO object (
+                        #     pid,
+                        #     label,
+                        #     identifierURI,
+                        #     identifierLocal,
+                        #     parentCollection
+                        # ) VALUES ()
+
+                        # INSERT INTO item (
+                        #     pid,
+                        #     seqNumber,
+                        #     parentObject,
+                        #     aipUUID
+                        # ) VALUES ()
+
+                        # INSERT INTO aip (
+                        #     uuid,
+                        #     dateCreated,
+                        #     pipelineURI,
+                        #     resourceURI,
+                        #     stgFullPath,
+                        #     rootCollection
+                        # )
+
                     # If ingest failed, log failure and increase failed count
                     if istat['status'] == 'FAILED':
                         logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
