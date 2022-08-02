@@ -275,8 +275,9 @@ def main():
                         # Either an object or an item row will ALWAYS be inserted
                         # Sometimes BOTH an object AND item row will be inserted
 
-                        # If there is no isMemberOfCollection_uri_s or it points to something other than a
-                        # collectionCModle, then do not create OBJECT record
+                        # Insert an object row unless:
+                        #     there is no isMemberOfCollection_uri_s; or
+                        #     it points to something other than a collectionCModle
                         #
                         # INSERT INTO object (
                         #     pid,
@@ -286,8 +287,9 @@ def main():
                         #     parentCollection
                         # ) VALUES ()
 
-                        # Create an item record of an object if the PID is a child/member of an object; ie the parent's
-                        # <RELS_EXT_hasModel_uri_s> != "info:fedora/islandora:collectionCModel"
+                        # Insert an item row if:
+                        #     the PID is a child/member of an object
+                        #     (i.e., the parent's <RELS_EXT_hasModel_uri_s> != "info:fedora/islandora:collectionCModel")
                         #
                         # INSERT INTO item (
                         #     pid,
