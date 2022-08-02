@@ -19,6 +19,8 @@ am.ss_url = settings.ss_url
 am.ss_api_key = settings.ss_api_key
 am.ss_user_name = settings.ss_user_name
 
+islandora_url = settings.islandora_solr_url
+
 # Set institution code from user input
 if len(sys.argv) > 1:
     if sys.argv[1] in settings.INSTITUTION:
@@ -239,17 +241,43 @@ def main():
 
                         # TODO: On completion, log in pawdb
 
-                        # When going up the collection hierarchy from the object, create parent collection
-                        # until you find the COLLECTION record already in pawdb
-                        # INSERT INTO collection (
-                        #     pid,
-                        #     label,
-                        #     parentCollection
+                        # API Calls to:
+
+                        # Archivematica Storage Service
+                        #     url = am.ss_url + '/api/v2/file/' + am.sip_uuid
+                        #     params = {
+                        #         'username' = am.ss_user_name,
+                        #         'api_key' = am.ss_api_key
+                        #     }
+                        #     request = requests.request('POST', url, params=params)
+
+                        # Solr:
+                        #     url = islandora_url + '/solr/collection1/query'
+                        #     params = {
+                        #         'q' = '*:*',
+                        #         'fq' = 'PID:' + <namespace> + '%5C:' + <objectID>,
+                        #         'wt' = 'json'
+                        #     }
+                        #     (<namespace> and <objectID> derived from am.transfer_name)
+                        #     request = requests.request('POST', url, params=params)
+
+                        # An aip row will ALWAYS be inserted
+                        #
+                        # INSERT INTO aip (
+                        #     uuid,
+                        #     dateCreated,
+                        #     pipelineURI,
+                        #     resourceURI,
+                        #     stgFullPath,
+                        #     rootCollection
                         # ) VALUES ()
 
-                        # Create the parent COLLECTION record unless it already exists;
+                        # Either an object or an item row will ALWAYS be inserted
+                        # Sometimes BOTH an object AND item row will be inserted
+
                         # If there is no isMemberOfCollection_uri_s or it points to something other than a
                         # collectionCModle, then do not create OBJECT record
+                        #
                         # INSERT INTO object (
                         #     pid,
                         #     label,
@@ -260,6 +288,7 @@ def main():
 
                         # Create an item record of an object if the PID is a child/member of an object; ie the parent's
                         # <RELS_EXT_hasModel_uri_s> != "info:fedora/islandora:collectionCModel"
+                        #
                         # INSERT INTO item (
                         #     pid,
                         #     seqNumber,
@@ -267,14 +296,15 @@ def main():
                         #     aipUUID
                         # ) VALUES ()
 
-                        # INSERT INTO aip (
-                        #     uuid,
-                        #     dateCreated,
-                        #     pipelineURI,
-                        #     resourceURI,
-                        #     stgFullPath,
-                        #     rootCollection
-                        # )
+                        # Create the parent COLLECTION record unless it already exists
+                        # When going up the collection hierarchy from the object, create parent collection
+                        # until you find the COLLECTION record already in pawdb
+                        #
+                        # INSERT INTO collection (
+                        #     pid,
+                        #     label,
+                        #     parentCollection
+                        # ) VALUES ()
 
                     # If ingest failed, log failure and increase failed count
                     if istat['status'] == 'FAILED':

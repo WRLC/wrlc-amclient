@@ -2,6 +2,8 @@ am_url = 'place Archivematic URL here'  # the local server URL to the AM Dashboa
 am_pub_url = 'place public Archivematica URL here'  # the public URL to the AM Dashboard
 ss_url = 'place Storage Service URL here'  # the URL to the SS
 
+islandora_solr_url = 'place Islandora Solr index URL here (including port num)'  # the URL to the Islandora Solr index
+
 am_api_key = 'place Archivematica key here'  # a r/w AM Dashboard API key
 am_user_name = 'place Archivematica username here'  # the username associated w/the AM API key
 
