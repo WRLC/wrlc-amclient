@@ -26,11 +26,9 @@ if len(sys.argv) > 1:
     if sys.argv[1] in settings.INSTITUTION:
         institution = sys.argv[1]
     else:
-        print('Institution code in command not found in settings.py', file=sys.stderr)
-        sys.exit()
+        raise SystemExit('Institution code in command not found in settings.py')
 else:
-    print('Institution not defined in command', file=sys.stderr)
-    sys.exit()
+    raise SystemExit('Institution not defined in command')
 
 # Import institutional variables from settings.py
 am.transfer_source = settings.INSTITUTION[institution]['transfer_source']
@@ -43,7 +41,13 @@ processing_folder = '/' + institution + 'islandora/processing/'  # this is the d
 
 def job_microservices(uuid, job_stat):
     am.unit_uuid = uuid
-    jobs = am.get_jobs()
+    try:
+        jobs = am.get_jobs()
+    except Exception as e:
+        logging.error('{}'.format(e))
+        print('{}'.format(e), file=sys.stderr)
+        return
+
     for job in jobs:
         ms = job['microservice']
         task = job['name']
@@ -86,8 +90,7 @@ def main():
         response = requests.request("GET", url, headers=headers, data=payload)
         path = settings.local_prefix + response.json()['path']
     except Exception as e:
-        print('Could not get path for SS location: ' + str(e), file=sys.stderr)
-        sys.exit()
+        raise SystemExit('Could not get path for SS location: {}'.format(e))
 
     # Define transfer and processing folders relative to SS location path
     transfer = path + transfer_folder
@@ -100,48 +103,56 @@ def main():
     # Check transfer folder for zipped bags
     if any(File.endswith('.zip') for File in os.listdir(transfer)):
 
-        # Check processing folder for active transfers
+        # Abort if there are active transfers in processing folder
         if any(File.endswith('.zip') for File in os.listdir(processing)):  # If active transfers, abort
-            print('Active transfers underway. Aborting.', file=sys.stderr)
-        else:  # If no active transfers, start transfers
-            # Set up logging to catch failed jobs
-            logdir = settings.logfile_dir
-            logfile = logdir + '/' + institution + time.strftime('%m%d%H%M', time.localtime()) + '.log'
-            formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
-            lh = logging.FileHandler(logfile)
-            lh.setFormatter(formatter)
-            logging.getLogger().addHandler(lh)
-            # logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
-            # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
-            logging.getLogger().setLevel(logging.INFO)  # Setting for debugging
+            raise SystemExit('Active transfers underway. Aborting.')
 
-            # move transfers to processing directory
-            source_folder = os.scandir(transfer)
-            for filename in source_folder:
-                if filename.is_file() and filename.name.endswith('.zip'):
-                    move_bag(transfer + filename.name, 'PROCESSING', filename.name)
+        # Set up logging to catch failed jobs
+        logdir = settings.logfile_dir
+        logfile = logdir + '/' + institution + time.strftime('%m%d%H%M', time.localtime()) + '.log'
+        formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+        lh = logging.FileHandler(logfile)
+        lh.setFormatter(formatter)
+        logging.getLogger().addHandler(lh)
+        # logging.getLogger().setLevel(logging.DEBUG)  # Extreme debug
+        # logging.getLogger().setLevel(logging.WARNING)   #  Setting for reporting
+        logging.getLogger().setLevel(logging.INFO)  # Setting for debugging
 
-            scanned_folder = os.scandir(processing)
+        # move transfers to processing directory
+        source_folder = os.scandir(transfer)
+        for filename in source_folder:
+            if filename.is_file() and filename.name.endswith('.zip'):
+                move_bag(transfer + filename.name, 'PROCESSING', filename.name)
 
-            # Iterate through files in processing folder
-            for filename in scanned_folder:
-                # Make sure the file is a zipped bag
-                if filename.is_file() and filename.name.endswith('.zip'):
-                    am.transfer_directory = processing_folder + filename.name
-                    am.transfer_name = filename.name
+        scanned_folder = os.scandir(processing)
 
-                    logging.info('Transferring bag ' + am.transfer_name)
+        # Iterate through files in processing folder
+        for filename in scanned_folder:
+            # Make sure the file is a zipped bag
+            if filename.is_file() and filename.name.endswith('.zip'):
+                am.transfer_directory = processing_folder + filename.name
+                am.transfer_name = filename.name
 
-                    # Start transfer
-                    package = am.create_package()
+                logging.info('Transferring bag ' + am.transfer_name)
+                print('Transferring bag ' + am.transfer_name, file=sys.stdout)
 
-                    # Get transfer UUID
-                    am.transfer_uuid = package['id']
-                    logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
+                # Start transfer
+                package = am.create_package()
 
-                    # Give transfer time to start
-                    time.sleep(10)
+                # Get transfer UUID
+                am.transfer_uuid = package['id']
+                logging.info(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid)
+                print(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid, file=sys.stdout)
 
+                # Give transfer time to start
+                time.sleep(10)
+                transferring = True
+                logging.info('Transfer Status: PROCESSING')
+                print('Transfer Status: PROCESSING', file=sys.stdout)
+
+                tstat = {}
+
+                while transferring is True:
                     # Get transfer status
                     tstat = am.get_transfer_status()
 
@@ -149,52 +160,50 @@ def main():
                     if isinstance(tstat, int):
                         logging.error('Could not get transfer status of ' + am.transfer_name +
                                       '; check AM MCPServer.log and SS storage_service.log')
-                        move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                        failed = failed + 1
-                        break
+                        print('Could not get transfer status of ' + am.transfer_name +
+                              '; check AM MCPServer.log and SS storage_service.log',
+                              file=sys.stderr)
+                        tstat['status'] = 'FAILED'  # create artificial failed status for later handling
+                        transferring = False  # this exits loop
 
                     else:
-                        while True:
-                            # Check if transfer is complete
-                            if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
+                        # Check if transfer is complete
+                        if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
 
-                                # If complete, exit loop
-                                break
+                            # If complete, exit loop
+                            transferring = False
 
-                            # If not complete, keep checking
-                            else:
-                                time.sleep(10)
-                                tstat = am.get_transfer_status()
+                        # If not complete, keep checking
+                        else:
+                            time.sleep(10)
 
-                                # When complete or failed, exit loop
-                                if tstat['status'] == 'COMPLETE' or tstat['status'] == 'FAILED':
-                                    break
+                # Report status of transfer microservices
+                job_microservices(am.transfer_uuid, tstat['status'])
 
-                                # Until it's complete, output status
-                                else:
-                                    logging.info('Transfer Status: ' + tstat['status'])
+                # When transfer is complete, log status and continue
+                if tstat['status'] == 'COMPLETE':
+                    logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
 
-                    # Report status of transfer microservices
-                    job_microservices(am.transfer_uuid, tstat['status'])
+                # If transfer fails, log failure, move bag to failed folder,and increase failed count
+                elif tstat['status'] == 'FAILED':
+                    logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
+                    move_bag(processing + filename.name, tstat['status'], am.transfer_name)
+                    failed = failed + 1
+                    break
 
-                    # When transfer is complete, log status and continue
-                    if tstat['status'] == 'COMPLETE':
-                        logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                # Get SIP UUID
+                am.sip_uuid = tstat['sip_uuid']
+                logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
 
-                    # If transfer fails, log failure, move bag to failed folder,and increase failed count
-                    elif tstat['status'] == 'FAILED':
-                        logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
-                        move_bag(processing + filename.name, tstat['status'], am.transfer_name)
-                        failed = failed + 1
-                        break
+                # Give ingest time to start
+                time.sleep(10)
+                ingesting = True
+                logging.info('Ingest Status: PROCESSING')
+                print('Ingest Status: PROCESSING', file=sys.stdout)
 
-                    # Get SIP UUID
-                    am.sip_uuid = tstat['sip_uuid']
-                    logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
+                istat = {}
 
-                    # Give ingest time to start
-                    time.sleep(10)
-
+                while ingesting is True:
                     # Get ingest status
                     istat = am.get_ingest_status()
 
@@ -202,123 +211,45 @@ def main():
                     if isinstance(istat, int):
                         logging.error('Could not get ingest status of ' + am.transfer_name
                                       + '; check AM MCPServer.log and SS storage_service.log')
-                        move_bag(processing + filename.name, 'failed', am.transfer_name)
-                        failed = failed + 1
-                        break
-
+                        print()
+                        istat['status'] = 'FAILED'  # create artificial failed status for later handling
+                        ingesting = False  # this exits loop
                     else:
-                        while True:
-                            # Check if ingest is complete
-                            if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
+                        # Check if ingest is complete
+                        if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
 
-                                # If complete, exit loop
-                                break
+                            # If complete, exit loop
+                            ingesting = False
 
-                            # If not complete, keep checking
-                            else:
-                                time.sleep(10)
-                                istat = am.get_ingest_status()
+                        # If not complete, keep checking
+                        else:
+                            time.sleep(10)
 
-                                # When complete, exit loop
-                                if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
-                                    break
+                # Report status of ingest microservices
+                job_microservices(am.sip_uuid, istat['status'])
 
-                                # Until it's complete, output status
-                                else:
-                                    logging.info('Ingest Status: ' + istat['status'])
+                # When ingest complete, output status
+                if istat['status'] == 'COMPLETE':
+                    logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
+                    logging.info(
+                        'AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
+                        '/archival-storage/' + am.sip_uuid
+                    )
+                    completed = completed + 1
 
-                    # Report status of ingest microservices
-                    job_microservices(am.sip_uuid, istat['status'])
+                    # TODO: On completion, log in pawdb
 
-                    # When ingest complete, output status
-                    if istat['status'] == 'COMPLETE':
-                        logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
-                        logging.info(
-                            'AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
-                            '/archival-storage/' + am.sip_uuid
-                        )
-                        completed = completed + 1
+                # If ingest failed, log failure and increase failed count
+                if istat['status'] == 'FAILED':
+                    logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
+                    failed = failed + 1
+                # Move bag to completed/failed folder
+                if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
+                    move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
-                        # TODO: On completion, log in pawdb
-
-                        # API Calls to:
-
-                        # Archivematica Storage Service
-                        #     url = am.ss_url + '/api/v2/file/' + am.sip_uuid
-                        #     params = {
-                        #         'username' = am.ss_user_name,
-                        #         'api_key' = am.ss_api_key
-                        #     }
-                        #     request = requests.request('POST', url, params=params)
-
-                        # Solr:
-                        #     url = islandora_url + '/solr/collection1/query'
-                        #     params = {
-                        #         'q' = '*:*',
-                        #         'fq' = 'PID:' + <namespace> + '%5C:' + <objectID>,
-                        #         'wt' = 'json'
-                        #     }
-                        #     (<namespace> and <objectID> derived from am.transfer_name)
-                        #     request = requests.request('POST', url, params=params)
-
-                        # An aip row will ALWAYS be inserted
-                        #
-                        # INSERT INTO aip (
-                        #     uuid,
-                        #     dateCreated,
-                        #     pipelineURI,
-                        #     resourceURI,
-                        #     stgFullPath,
-                        #     rootCollection
-                        # ) VALUES ()
-
-                        # Either an object or an item row will ALWAYS be inserted
-                        # Sometimes BOTH an object AND item row will be inserted
-
-                        # Insert an object row unless:
-                        #     there is no isMemberOfCollection_uri_s; or
-                        #     it points to something other than a collectionCModle
-                        #
-                        # INSERT INTO object (
-                        #     pid,
-                        #     label,
-                        #     identifierURI,
-                        #     identifierLocal,
-                        #     parentCollection
-                        # ) VALUES ()
-
-                        # Insert an item row if:
-                        #     the PID is a child/member of an object
-                        #     (i.e., the parent's <RELS_EXT_hasModel_uri_s> != "info:fedora/islandora:collectionCModel")
-                        #
-                        # INSERT INTO item (
-                        #     pid,
-                        #     seqNumber,
-                        #     parentObject,
-                        #     aipUUID
-                        # ) VALUES ()
-
-                        # Create the parent COLLECTION record unless it already exists
-                        # When going up the collection hierarchy from the object, create parent collection
-                        # until you find the COLLECTION record already in pawdb
-                        #
-                        # INSERT INTO collection (
-                        #     pid,
-                        #     label,
-                        #     parentCollection
-                        # ) VALUES ()
-
-                    # If ingest failed, log failure and increase failed count
-                    if istat['status'] == 'FAILED':
-                        logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
-                        failed = failed + 1
-                    # Move bag to completed/failed folder
-                    if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
-                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
-
-            # Output final count of completed and failed bags
-            print(str(completed) + ' bags transferred', file=sys.stdout)
-            print(str(failed) + ' bags failed', file=sys.stdout)
+        # Output final count of completed and failed bags
+        print(str(completed) + ' bags transferred', file=sys.stdout)
+        print(str(failed) + ' bags failed', file=sys.stdout)
 
     else:
         print('No bags found in folder', file=sys.stdout)
