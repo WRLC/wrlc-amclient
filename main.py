@@ -202,7 +202,7 @@ def main():
                     )
                     completed = completed + 1
 
-                    # TODO: On completion, log in pawdb
+                    # On completion, log in pawdb
                     now = datetime.now()
                     date_time = now.strftime("%Y-%m-%d %H:%M:%S.0")
 
