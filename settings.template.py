@@ -15,6 +15,8 @@ INSTITUTION = {
         'transfer_source': '',  # the UUID of the institution's source location
         'transfer_type': '',  # the bag/folder type of the transfer (e.g., 'zipped bag')
         'processing_config': '',  # the name of the AM Dashboard processing config for the institution
+        'inst_code': '',
+        'rootCollection': ''
     },
 }
 
