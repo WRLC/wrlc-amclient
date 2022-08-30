@@ -1,11 +1,15 @@
 import sys
 import os
 import time
+import json
 import settings
+import requests
 import amclient
 import requests
 import logging
 import shutil
+from datetime import datetime
+import modules.database
 
 # Initialize Archivematica Python Client
 am = amclient.AMClient()
@@ -238,6 +242,8 @@ def main():
                     completed = completed + 1
 
                     # TODO: On completion, log in pawdb
+                    now = datetime.now()
+                    date_time = now.strftime("%Y-%m-%d %H:%M:%S.0")
 
                 # If ingest failed, log failure and increase failed count
                 if istat['status'] == 'FAILED':
