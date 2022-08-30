@@ -18,6 +18,14 @@ INSTITUTION = {
     },
 }
 
+database = {
+    'host': '',
+    'port': 3306,
+    'user': '',
+    'password': '',
+    'database': ''
+}
+
 logfile_dir = ''  # relative/absolute path to directory where log files will be saved
 
 local_prefix = ''  # for local development environments

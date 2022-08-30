@@ -1,15 +1,14 @@
 import sys
 import os
 import time
-import json
 import settings
-import requests
 import amclient
 import requests
 import logging
-import shutil
+from modules.ambaghandling import job_microservices, move_bag
+from modules.sqlfunctions import get_collection_data, aip_row, collection_row, object_row
+from modules.apicalls import ss_call, solr_call
 from datetime import datetime
-import modules.database
 
 # Initialize Archivematica Python Client
 am = amclient.AMClient()
@@ -41,44 +40,6 @@ am.processing_config = settings.INSTITUTION[institution]['processing_config']
 
 transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the directory to be watched
 processing_folder = '/' + institution + 'islandora/processing/'  # this is the directory for active transfers
-
-
-def job_microservices(uuid, job_stat):
-    am.unit_uuid = uuid
-    try:
-        jobs = am.get_jobs()
-    except Exception as e:
-        logging.error('{}'.format(e))
-        print('{}'.format(e), file=sys.stderr)
-        return
-
-    for job in jobs:
-        ms = job['microservice']
-        task = job['name']
-        status = job['status']
-        message = ms + ': ' + task + ' ' + status
-        if job_stat == 'FAILED':
-            if status == 'FAILED':
-                logging.error(message)
-            else:
-                logging.info(message)
-        else:
-            if status == 'FAILED':
-                logging.warning(message)
-            else:
-                logging.info(message)
-
-
-def move_bag(file, status, filename):
-    status_str = status.lower()
-    source = 'processing'
-    if status == 'COMPLETE':
-        status_str = status_str + 'd'
-    elif status == 'PROCESSING':
-        source = 'transfer'
-    dest_path = file.replace('/' + source + '/', '/' + status_str + '/')
-    shutil.move(file, dest_path)
-    logging.info(filename + ' moved to ' + status_str + ' folder')
 
 
 def main():
@@ -182,7 +143,7 @@ def main():
                             time.sleep(10)
 
                 # Report status of transfer microservices
-                job_microservices(am.transfer_uuid, tstat['status'])
+                job_microservices(am, tstat['status'])
 
                 # When transfer is complete, log status and continue
                 if tstat['status'] == 'COMPLETE':
@@ -244,6 +205,136 @@ def main():
                     # TODO: On completion, log in pawdb
                     now = datetime.now()
                     date_time = now.strftime("%Y-%m-%d %H:%M:%S.0")
+
+                    # Make API call to AM Storage Service for ingested AIP/Islandora Object
+                    aip_ss = ss_call(am.sip_uuid)
+
+                    # Verify SS response is valid
+                    if type(aip_ss) is dict:
+                        aip_vars = {  # Prepare values to insert into pawdb.aip
+                            'uuid': am.sip_uuid,
+                            'datecreated': date_time,
+                            'pipelineuri': settings.am_pub_url + '/archival-storage/' + am.sip_uuid,
+                            'resourceuri': aip_ss['resource_uri'],
+                            'stgfullpath': aip_ss['current_full_path'],
+                            'rootcollection': settings.INSTITUTION[institution]['rootCollection']
+                        }
+                    else:
+                        raise SystemExit(aip_ss)
+
+                    # Make API call to Islandora Solr for ingested AIP/Islandora Object
+                    pid = settings.INSTITUTION['inst_code'] + '-' + am.transfer_name
+                    aip_solr = solr_call(pid, institution)
+                    aip_row(aip_vars)  # Insert AIP row into PAWDB
+
+                    # Verify Islandora response is valid
+                    if aip_solr is not None:
+                        if aip_solr['response']['numFound'] == 0:
+                            print('No PID found matching ' + pid, file=sys.stderr)
+
+                        elif aip_solr['response']['numFound'] > 1:
+                            print('More than on PID found matching ' + pid, file=sys.stderr)
+                        else:
+                            pass
+                    else:
+                        print('Unable to retrieve Solr data for ' + pid, file=sys.stderr)
+
+                    # Get object data from Islandora response
+                    pid_data = aip_solr['response']['docs'][0]
+
+                    # Get object's parent
+                    parent = None  # Initiate empty variable for PID's parent
+                    check_parent_type = False  # initiate boolean for checking parent's model
+
+                    # Check for non-collection parent first
+                    if 'RELS_EXT_isPageOf_uri_s' in pid_data:
+                        parent = pid_data['RELS_EXT_isPageOf_uri_s'].replace('info:fedora/', '')
+                    elif 'RELS_EXT_isMemberOf_uri_s' in pid_data:
+                        parent = pid_data['RELS_EXT_isMemberOf_uri_s'].replace('info:fedora/', '')
+                    elif 'RELS_EXT_isConstituentOf_uri_s' in pid_data:
+                        parent = pid_data['RELS_EXT_isConstituentOf_uri_s'].replace('info:fedora/', '')
+                    else:  # if no other parent, check for collection parent
+                        if 'RELS_EXT_isMemberOfCollection_uri_s' in pid_data:
+                            parent = pid_data['RELS_EXT_isMemberOfCollection_uri_s'].replace('info:fedora/', '')
+                            check_parent_type = True  # Triggers check of parent's model type
+
+                    # If parent is in collection field, check parent's model type
+                    if check_parent_type:
+
+                        # Make API call for parent data
+                        parent_data = solr_call(parent.replace('info:fedora/', ''), institution)['response']['docs'][0]
+                        parent_vars = {
+                            'type': parent_data['RELS_EXT_hasModel_uri_s'],
+                            'pid': parent_data['PID'],
+                            'label': parent_data['fgs_label_s'],
+                            'parent': parent_data['RELS_EXT_isMemberOfCollection_uri_s'].replace('info:fedora/', '')
+                        }
+                        if parent_vars['type'] == 'info:fedora/islandora:collectionCModel':
+                            check_parent_db = True  # confirms parent is collection and triggers check for it in PAWDB
+                            collection_vars = parent_vars
+
+                            # Initialize empty list of collections to add to PAWDB
+                            parents_to_add = []
+
+                            # Loop through parent collections until one is found in PAWDB
+                            while check_parent_db is True:
+                                # Check whether collection is already in PAWDB `collection` table
+                                parent_coll = get_collection_data(collection_vars['pid'])
+
+                                # If it's not already in PAWDB, act further on it
+                                if not parent_coll:
+
+                                    # Append collection data to parents_to_add list
+                                    parents_to_add.append(collection_vars)
+
+                                    # Get collection's parent info for next time through loop
+                                    parent_collection_data = solr_call(
+                                        collection_vars['parent'], institution)['response']['docs'][0]
+                                    collection_vars = {
+                                        'type': parent_collection_data['RELS_EXT_hasModel_uri_s'],
+                                        'pid': parent_collection_data['PID'],
+                                        'label': parent_collection_data['fgs_label_s'],
+                                        'parent': parent_collection_data['RELS_EXT_isMemberOfCollection_uri_s'].replace(
+                                            'info:fedora/', '')
+                                    }
+
+                                # If collection is already in PAWDB, end the loop
+                                else:
+                                    check_parent_db = False
+
+                            # Loop through list of collections to add to PAWDB in reverse order
+                            for collection in reversed(parents_to_add):
+                                collection_row(collection)  # Add collection to PAWDB
+
+                    # Get object vars ready for creating `object` row
+                    object_vars = {
+                        'pid': pid_data['PID'],
+                        'label': pid_data['fgs_label_s'],
+                        'identifierURI': 'NULL',
+                        'identifierLocal': 'NULL',
+                        'seqNumber': 'NULL',
+                        'parent': parent,
+                        'aipUUID': am.sip_uuid
+                    }
+
+                    # Set identifierURI, if present
+                    if 'mods_identifier_uri_s' in pid_data:
+                        object_vars['identifierURI'] = pid_data['mods_identifier_uri_s']
+
+                    # Set identifierLocal, if present
+                    if 'mods_identifier_local_s' in pid_data:
+                        object_vars['identifierLocal'] = pid_data['mods_identifier_local_s']
+
+                    # Set seqNumber, if any of three values are present
+                    if 'RELS_EXT_isPageNumber_literal_s' in pid_data:
+                        object_vars['seqNumber'] = pid_data['RELS_EXT_isPageNumber_literal_s']
+                    elif 'RELS_EXT_isSequenceNumber_literal_s' in pid_data:
+                        object_vars['seqNumber'] = pid_data['RELS_EXT_isSequenceNumber_literal_s']
+                    elif 'RELS_EXT_isSection_literal_s' in pid_data:
+                        object_vars['seqNumber'] = pid_data['RELS_EXT_isSection_literal_s']
+
+                    # Insert object row into PAWDB
+                    object_row(object_vars)
 
                 # If ingest failed, log failure and increase failed count
                 if istat['status'] == 'FAILED':
