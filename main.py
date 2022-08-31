@@ -128,7 +128,7 @@ def main():
                         print('Could not get transfer status of ' + am.transfer_name +
                               '; check AM MCPServer.log and SS storage_service.log',
                               file=sys.stderr)
-                        tstat['status'] = 'FAILED'  # create artificial failed status for later handling
+                        tstat = {'status': 'FAILED'}
                         transferring = False  # this exits loop
 
                     else:
@@ -148,17 +148,20 @@ def main():
                 # When transfer is complete, log status and continue
                 if tstat['status'] == 'COMPLETE':
                     logging.info('Transfer of ' + am.transfer_uuid + ' COMPLETE')
+                    print('Transfer of ' + am.transfer_uuid + ' COMPLETE', file=sys.stdout)
 
                 # If transfer fails, log failure, move bag to failed folder,and increase failed count
                 elif tstat['status'] == 'FAILED':
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
+                    print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
                     move_bag(processing + filename.name, tstat['status'], am.transfer_name)
                     failed = failed + 1
-                    break
+                    continue
 
                 # Get SIP UUID
                 am.sip_uuid = tstat['sip_uuid']
                 logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
+                print(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid, file=sys.stdout)
 
                 # Give ingest time to start
                 time.sleep(10)
@@ -176,7 +179,8 @@ def main():
                     if isinstance(istat, int):
                         logging.error('Could not get ingest status of ' + am.transfer_name
                                       + '; check AM MCPServer.log and SS storage_service.log')
-                        print()
+                        print('Could not get ingest status of ' + am.transfer_name
+                              + '; check AM MCPServer.log and SS storage_service.log', file=sys.stderr)
                         istat['status'] = 'FAILED'  # create artificial failed status for later handling
                         ingesting = False  # this exits loop
                     else:
@@ -191,15 +195,18 @@ def main():
                             time.sleep(10)
 
                 # Report status of ingest microservices
-                job_microservices(am.sip_uuid, istat['status'])
+                job_microservices(am, istat['status'])
 
                 # When ingest complete, output status
                 if istat['status'] == 'COMPLETE':
                     logging.info('Ingest of ' + am.sip_uuid + ' COMPLETE')
+                    print('Ingest of ' + am.sip_uuid + ' COMPLETE', file=sys.stdout)
                     logging.info(
                         'AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
                         '/archival-storage/' + am.sip_uuid
                     )
+                    print('AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
+                          '/archival-storage/' + am.sip_uuid, file=sys.stdout)
                     completed = completed + 1
 
                     # On completion, log in pawdb
@@ -223,24 +230,37 @@ def main():
                         raise SystemExit(aip_ss)
 
                     # Make API call to Islandora Solr for ingested AIP/Islandora Object
-                    pid = settings.INSTITUTION['inst_code'] + '-' + am.transfer_name
+                    pid = am.transfer_name
+                    pid = pid.replace('.zip', '')
+                    pid = pid.replace('_', ':', 1)
+
                     aip_solr = solr_call(pid, institution)
+                    logging.info('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB')
+                    print('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB', file=sys.stdout)
                     aip_row(aip_vars)  # Insert AIP row into PAWDB
 
                     # Verify Islandora response is valid
                     if aip_solr is not None:
                         if aip_solr['response']['numFound'] == 0:
-                            print('No PID found matching ' + pid, file=sys.stderr)
+                            print('Solr query error: No PID found matching ' + pid, file=sys.stderr)
+                            logging.error('Solr query error: No PID found matching ' + pid)
 
                         elif aip_solr['response']['numFound'] > 1:
-                            print('More than on PID found matching ' + pid, file=sys.stderr)
+                            print('Solr query error: More than on PID found matching ' + pid, file=sys.stderr)
+                            logging.error('Solr query error: More than on PID found matching ' + pid)
                         else:
                             pass
                     else:
-                        print('Unable to retrieve Solr data for ' + pid, file=sys.stderr)
+                        print('Solr query error: Unable to retrieve data for ' + pid, file=sys.stderr)
+                        logging.error('Solr query error: Unable to retrieve data for ' + pid)
 
                     # Get object data from Islandora response
-                    pid_data = aip_solr['response']['docs'][0]
+                    try:
+                        pid_data = aip_solr['response']['docs'][0]
+                    except Exception as e:
+                        logging.error(format(e))
+                        print(format(e), file=sys.stderr)
+                        continue
 
                     # Get object's parent
                     parent = None  # Initiate empty variable for PID's parent
@@ -279,10 +299,15 @@ def main():
                             # Loop through parent collections until one is found in PAWDB
                             while check_parent_db is True:
                                 # Check whether collection is already in PAWDB `collection` table
+                                logging.info('Checking PAWDB for collection ' + collection_vars['pid'])
+                                print('Checking PAWDB for collection ' + collection_vars['pid'], file=sys.stdout)
                                 parent_coll = get_collection_data(collection_vars['pid'])
 
                                 # If it's not already in PAWDB, act further on it
                                 if not parent_coll:
+                                    logging.info('Collection ' + collection_vars['pid'] + ' not found in PAWDB')
+                                    print('Collection ' + collection_vars['pid'] + ' not found in PAWDB',
+                                          file=sys.stdout)
 
                                     # Append collection data to parents_to_add list
                                     parents_to_add.append(collection_vars)
@@ -300,10 +325,14 @@ def main():
 
                                 # If collection is already in PAWDB, end the loop
                                 else:
+                                    logging.info('Collection ' + collection_vars['pid'] + ' found in PAWDB')
+                                    print('Collection ' + collection_vars['pid'] + ' found in PAWDB', file=sys.stdout)
                                     check_parent_db = False
 
                             # Loop through list of collections to add to PAWDB in reverse order
                             for collection in reversed(parents_to_add):
+                                logging.info('Adding collection ' + collection['pid'] + ' to PAWDB')
+                                print('Adding collection ' + collection['pid'] + ' to PAWDB', file=sys.stdout)
                                 collection_row(collection)  # Add collection to PAWDB
 
                     # Get object vars ready for creating `object` row
@@ -334,11 +363,14 @@ def main():
                         object_vars['seqNumber'] = pid_data['RELS_EXT_isSection_literal_s']
 
                     # Insert object row into PAWDB
+                    logging.info('Adding object ' + object_vars['pid'] + ' to PAWDB')
+                    print('Adding object ' + object_vars['pid'] + ' to PAWDB', file=sys.stdout)
                     object_row(object_vars)
 
                 # If ingest failed, log failure and increase failed count
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
+                    print('Ingest of ' + am.sip_uuid + 'FAILED', file=sys.stderr)
                     failed = failed + 1
                 # Move bag to completed/failed folder
                 if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':

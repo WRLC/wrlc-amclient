@@ -11,7 +11,10 @@ def job_microservices(am, job_stat):
         logging.error('{}'.format(e))
         print('{}'.format(e), file=sys.stderr)
         return
-
+    if isinstance(jobs, int):
+        logging.error('Could not get microservice status for ' + am.transfer_name)
+        print('Could not get microservice status for ' + am.transfer_name, file=sys.stderr)
+        return
     for job in jobs:
         ms = job['microservice']
         task = job['name']

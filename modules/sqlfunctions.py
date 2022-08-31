@@ -1,5 +1,5 @@
 import settings
-import database
+import modules.database as database
 
 
 def get_collection_data(islandora_pid):
