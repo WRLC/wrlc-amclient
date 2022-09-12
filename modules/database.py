@@ -18,7 +18,7 @@ class Database(object):
 
         except Exception as e:
             logging.error('Database connection FAILED {}'.format(e))
-            print('Database connection FAILED {}'.format(e), file=sys.stderr)
+            # print('Database connection FAILED {}'.format(e), file=sys.stderr)
 
         return self
 
@@ -29,17 +29,17 @@ class Database(object):
 
         except Exception as e:
             logging.error('Disconnect from database FAILED {}'.format(e))
-            print('Disconnect from database FAILED {}'.format(e), file=sys.stderr)
+            # print('Disconnect from database FAILED {}'.format(e), file=sys.stderr)
 
     def insert_row(self, sql, data=None):
         try:
             self.db_cursor.execute(sql, data)
             self.db_conn.commit()
             logging.info('Insert row into database SUCCEEDED')
-            print('Insert row into database SUCCEEDED', file=sys.stdout)
+            # print('Insert row into database SUCCEEDED', file=sys.stdout)
         except Exception as e:
             logging.error('Insert row into database FAILED {}'.format(e))
-            print('Insert row into database FAILED {}'.format(e), file=sys.stderr)
+            # print('Insert row into database FAILED {}'.format(e), file=sys.stderr)
 
     def sql_select(self, sql, data=None):
         try:
@@ -48,4 +48,4 @@ class Database(object):
             return result
         except Exception as e:
             logging.error('SQL SELECT FAILED {}'.format(e))
-            print('SQL SELECT FAILED {}'.format(e), file=sys.stderr)
+            # print('SQL SELECT FAILED {}'.format(e), file=sys.stderr)
