@@ -2,6 +2,15 @@ import settings
 import modules.database as database
 
 
+def get_object(pid):
+    sql = 'SELECT pid FROM object WHERE pid = %s'
+    val = (pid,)
+
+    with database.Database(settings.database) as connection:
+        result = connection.sql_select(sql, val)
+        return result
+
+
 def get_collection_data(islandora_pid):
     sql = 'SELECT * FROM collection WHERE pid = %s'
     val = (islandora_pid,)
