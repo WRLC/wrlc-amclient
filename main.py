@@ -6,7 +6,7 @@ import amclient
 import requests
 import logging
 from modules.ambaghandling import job_microservices, move_bag
-from modules.sqlfunctions import get_collection_data, aip_row, collection_row, object_row
+from modules.sqlfunctions import get_collection_data, aip_row, collection_row, object_row, get_object
 from modules.apicalls import ss_call, solr_call
 from datetime import datetime
 
@@ -64,6 +64,7 @@ def main():
     # Initialize completed and failed counting processed/failed bags
     completed = 0
     failed = 0
+    reingests = 0
 
     # Check transfer folder for zipped bags
     if any(File.endswith('.zip') for File in os.listdir(transfer)):
@@ -87,7 +88,22 @@ def main():
         source_folder = os.scandir(transfer)
         for filename in source_folder:
             if filename.is_file() and filename.name.endswith('.zip'):
-                move_bag(transfer + filename.name, 'PROCESSING', filename.name)
+
+                # First check if pid is a reingest
+                pid = filename.name
+                pid = pid.replace('.zip', '')
+                pid = pid.replace('_', ':', 1)
+                pid = pid.replace(settings.INSTITUTION[institution]['inst_code'] + '-', '', 1)
+
+                reingest = get_object(pid)
+
+                # If it is a reingest, move bag to reingest folder and don't process it
+                if len(reingest) > 0:
+                    move_bag(transfer + filename.name, 'REINGEST', filename.name)
+                    reingests = reingests + 1
+                    continue
+                else:
+                    move_bag(transfer + filename.name, 'PROCESSING', filename.name)
 
         scanned_folder = os.scandir(processing)
 
@@ -377,6 +393,7 @@ def main():
                     move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
         # Output final count of completed and failed bags
+        print(str(reingests) + ' bags to reingest', file=sys.stdout)
         print(str(completed) + ' bags transferred', file=sys.stdout)
         print(str(failed) + ' bags failed', file=sys.stdout)
 
