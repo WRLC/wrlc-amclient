@@ -365,6 +365,8 @@ def main():
                     # Set identifierURI, if present
                     if 'mods_identifier_uri_s' in pid_data:
                         object_vars['identifierURI'] = pid_data['mods_identifier_uri_s']
+                    elif 'mods_identifier_hdl_s' in pid_data:
+                        object_vars['identifierURI'] = pid_data['mods_identifier_hdl_s']
 
                     # Set identifierLocal, if present
                     if 'mods_identifier_local_s' in pid_data:
