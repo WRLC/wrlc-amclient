@@ -175,7 +175,13 @@ def main():
                     continue
 
                 # Get SIP UUID
-                am.sip_uuid = tstat['sip_uuid']
+                try:
+                    am.sip_uuid = tstat['sip_uuid']
+                except KeyError:
+                    time.sleep(20)
+                    tstat = am.get_transfer_status()
+                    am.sip_uuid = tstat['sip_uuid']
+
                 logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
                 # print(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid, file=sys.stdout)
 
