@@ -126,7 +126,7 @@ def main():
                 # print(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid, file=sys.stdout)
 
                 # Give transfer time to start
-                time.sleep(10)
+                time.sleep(20)
                 transferring = True
                 logging.info('Transfer Status: PROCESSING')
                 # print('Transfer Status: PROCESSING', file=sys.stdout)
@@ -159,6 +159,7 @@ def main():
                             time.sleep(10)
 
                 # Report status of transfer microservices
+                time.sleep(30)
                 job_microservices(am, tstat['status'])
 
                 # When transfer is complete, log status and continue
@@ -186,7 +187,7 @@ def main():
                 # print(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid, file=sys.stdout)
 
                 # Give ingest time to start
-                time.sleep(10)
+                time.sleep(20)
                 ingesting = True
                 logging.info('Ingest Status: PROCESSING')
                 # print('Ingest Status: PROCESSING', file=sys.stdout)
@@ -217,6 +218,7 @@ def main():
                             time.sleep(10)
 
                 # Report status of ingest microservices
+                time.sleep(30)
                 job_microservices(am, istat['status'])
 
                 # When ingest complete, output status
