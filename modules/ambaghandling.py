@@ -1,20 +1,47 @@
 import logging
 import shutil
 import sys
+import time
 
 
 def job_microservices(am, job_stat):
     am.unit_uuid = am.transfer_uuid
+
+    # Make up to three attempts to get microservices if exception raised
+    for i in range(3):
+        try:
+            jobs = am.get_jobs()
+        except Exception as e:
+            # If exception, API call failed, so retry after sleep
+            logging.error('Retrying microservice status: {}'.format(e))
+            print('Retrying microservice status: {}'.format(e), file=sys.stderr)
+            time.sleep(30)
+            continue
+        else:
+            # If jobs is an integer, API call succeeded, but didn't return microservices, so retry
+            if isinstance(jobs, int):
+                logging.error('Retrying microservice status')
+                print('Retrying microservice status', file=sys.stderr)
+                time.sleep(30)
+                continue
+            else:
+                break  # As soon as there's no exception raised and jobs is not an integer, end the loop early
+
+    # If after all tries jobs is not set, then microservices status call failed
     try:
-        jobs = am.get_jobs()
-    except Exception as e:
-        logging.error('{}'.format(e))
-        print('{}'.format(e), file=sys.stderr)
+        jobs
+    except NameError:
+        logging.error('Could not get microservice status for ' + am.transfer_name)
+        print('Could not get microservice status for ' + am.transfer_name, file=sys.stderr)
         return
+
+    # If after all tries jobs is still an integer, then microservices status call failed
     if isinstance(jobs, int):
         logging.error('Could not get microservice status for ' + am.transfer_name)
         print('Could not get microservice status for ' + am.transfer_name, file=sys.stderr)
         return
+
+    # If function reaches here, then microservices status was successfully obtained
     for job in jobs:
         ms = job['microservice']
         task = job['name']
