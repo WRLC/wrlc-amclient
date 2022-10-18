@@ -27,7 +27,7 @@ def job_microservices(am, job_stat):
             else:
                 break  # As soon as there's no exception raised and jobs is not an integer, end the loop early
 
-    # If after all tries jobs is not set, then microservices status call failed
+    # After all tries, check if jobs exists. If not set, then microservices status calls failed
     try:
         jobs
     except NameError:
@@ -35,13 +35,13 @@ def job_microservices(am, job_stat):
         print('Could not get microservice status for ' + am.transfer_name, file=sys.stderr)
         return
 
-    # If after all tries jobs is still an integer, then microservices status call failed
+    # After all tries, check if jobs is an integer. If so, then microservices status calls failed
     if isinstance(jobs, int):
         logging.error('Could not get microservice status for ' + am.transfer_name)
         print('Could not get microservice status for ' + am.transfer_name, file=sys.stderr)
         return
 
-    # If function reaches here, then microservices status was successfully obtained
+    # If function reaches here, then microservices status call succeeded
     for job in jobs:
         ms = job['microservice']
         task = job['name']
