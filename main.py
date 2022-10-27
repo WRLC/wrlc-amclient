@@ -65,6 +65,8 @@ def main():
     completed = 0
     failed = 0
     reingests = 0
+    no_db = 0
+    no_ancestor = 0
 
     # Check transfer folder for zipped bags
     if any(File.endswith('.zip') for File in os.listdir(transfer)):
@@ -126,7 +128,7 @@ def main():
                 # print(am.transfer_name + ' assigned transfer UUID: ' + am.transfer_uuid, file=sys.stdout)
 
                 # Give transfer time to start
-                time.sleep(20)
+                time.sleep(30)
                 transferring = True
                 logging.info('Transfer Status: PROCESSING')
                 # print('Transfer Status: PROCESSING', file=sys.stdout)
@@ -156,7 +158,7 @@ def main():
 
                         # If not complete, keep checking
                         else:
-                            time.sleep(10)
+                            time.sleep(30)
 
                 # Report status of transfer microservices
                 time.sleep(30)
@@ -179,7 +181,7 @@ def main():
                 try:
                     am.sip_uuid = tstat['sip_uuid']
                 except KeyError:
-                    time.sleep(20)
+                    time.sleep(30)
                     tstat = am.get_transfer_status()
                     am.sip_uuid = tstat['sip_uuid']
 
@@ -187,7 +189,7 @@ def main():
                 # print(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid, file=sys.stdout)
 
                 # Give ingest time to start
-                time.sleep(20)
+                time.sleep(30)
                 ingesting = True
                 logging.info('Ingest Status: PROCESSING')
                 # print('Ingest Status: PROCESSING', file=sys.stdout)
@@ -215,7 +217,7 @@ def main():
 
                         # If not complete, keep checking
                         else:
-                            time.sleep(10)
+                            time.sleep(30)
 
                 # Report status of ingest microservices
                 time.sleep(30)
@@ -240,6 +242,12 @@ def main():
                     # Make API call to AM Storage Service for ingested AIP/Islandora Object
                     aip_ss = ss_call(am.sip_uuid)
 
+                    if aip_ss is None:
+                        logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
+                        logging.error('{} not added to PAWDB'.format(am.transfer_name))
+                        no_db = no_db + 1
+                        continue
+
                     # Verify SS response is valid
                     if type(aip_ss) is dict:
                         aip_vars = {  # Prepare values to insert into pawdb.aip
@@ -251,9 +259,14 @@ def main():
                             'rootcollection': settings.INSTITUTION[institution]['rootCollection']
                         }
                     else:
-                        raise SystemExit(aip_ss)
+                        logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
+                        logging.error('{} not added to PAWDB'.format(am.transfer_name))
+                        no_db = no_db + 1
+                        continue
 
                     # Make API call to Islandora Solr for ingested AIP/Islandora Object
+                    # TODO: replace rightmost _ with :
+                    # TODO: replace remaining _ with -
                     pid = am.transfer_name
                     pid = pid.replace('.zip', '')
                     pid = pid.replace('_', ':', 1)
@@ -261,29 +274,44 @@ def main():
                     aip_solr = solr_call(pid, institution)
                     logging.info('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB')
                     # print('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB', file=sys.stdout)
-                    aip_row(aip_vars)  # Insert AIP row into PAWDB
+                    try:
+                        aip_row(aip_vars)  # Insert AIP row into PAWDB
+                    except Exception as e:
+                        logging.error('Database insert failed: {}'.format(e))
+                        logging.error('{} not added to PAWDB'.format(pid))
+                        no_db = no_db + 1
+                        continue
 
                     # Verify Islandora response is valid
                     if aip_solr is not None:
                         if aip_solr['response']['numFound'] == 0:
                             # print('Solr query error: No PID found matching ' + pid, file=sys.stderr)
                             logging.error('Solr query error: No PID found matching ' + pid)
+                            logging.error('{} not added to PAWDB'.format(pid))
+                            no_db = no_db + 1
+                            continue
 
                         elif aip_solr['response']['numFound'] > 1:
                             # print('Solr query error: More than on PID found matching ' + pid, file=sys.stderr)
                             logging.error('Solr query error: More than on PID found matching ' + pid)
+                            logging.error('{} not added to PAWDB'.format(pid))
+                            no_db = no_db + 1
+                            continue
                         else:
                             pass
                     else:
                         # print('Solr query error: Unable to retrieve data for ' + pid, file=sys.stderr)
                         logging.error('Solr query error: Unable to retrieve data for ' + pid)
+                        logging.error('{} not added to PAWDB'.format(pid))
+                        no_db = no_db + 1
+                        continue
 
                     # Get object data from Islandora response
                     try:
                         pid_data = aip_solr['response']['docs'][0]
                     except Exception as e:
                         logging.error(format(e))
-                        # print(format(e), file=sys.stderr)
+                        no_db = no_db + 1
                         continue
 
                     # Get object's parent
@@ -307,6 +335,34 @@ def main():
 
                         # Make API call for parent data
                         parent_data = solr_call(parent.replace('info:fedora/', ''), institution)['response']['docs'][0]
+
+                        if parent_data is not None:
+                            if parent_data['response']['numFound'] == 0:
+                                logging.error('Solr query error: No PID found matching {}'.format(
+                                    parent.replace('info:fedora/', '')
+                                ))
+                                logging.error('{} not added to PAWDB'.format(pid))
+                                no_db = no_db + 1
+                                continue
+
+                            elif parent_data['response']['numFound'] > 1:
+                                logging.error('Solr query error: More than on PID found matching {}'.format(
+                                    parent.replace('info:fedora/', '')
+                                ))
+                                logging.error('{} not added to PAWDB'.format(pid))
+                                no_db = no_db + 1
+                                continue
+                            else:
+                                pass
+                        else:
+                            # print('Solr query error: Unable to retrieve data for ' + pid, file=sys.stderr)
+                            logging.error('Solr query error: Unable to retrieve data for {}'.format(
+                                parent.replace('info:fedora/', '')
+                            ))
+                            logging.error('{} not added to PAWDB'.format(pid))
+                            no_db = no_db + 1
+                            continue
+
                         parent_vars = {
                             'type': parent_data['RELS_EXT_hasModel_uri_s'],
                             'pid': parent_data['PID'],
@@ -339,6 +395,35 @@ def main():
                                     # Get collection's parent info for next time through loop
                                     parent_collection_data = solr_call(
                                         collection_vars['parent'], institution)['response']['docs'][0]
+
+                                    if parent_collection_data is not None:
+                                        if parent_collection_data['response']['numFound'] == 0:
+                                            logging.error('Solr query error: No PID found matching {}'.format(
+                                                collection_vars['parent']
+                                            ))
+                                            logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
+                                                          + format(collection_vars['parent']))
+                                            no_ancestor = no_ancestor + 1
+                                            continue
+
+                                        elif parent_data['response']['numFound'] > 1:
+                                            logging.error('Solr query error: More than on PID found matching {}'.format(
+                                                collection_vars['parent']
+                                            ))
+                                            logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
+                                                          + format(collection_vars['parent']))
+                                            no_ancestor = no_ancestor + 1
+                                            continue
+                                        else:
+                                            pass
+                                    else:
+                                        logging.error('Solr query error: Unable to retrieve data for {}'.format(
+                                            collection_vars['parent']
+                                        ))
+                                        logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
+                                                      + format(collection_vars['parent']))
+                                        no_ancestor = no_ancestor + 1
+                                        continue
                                     collection_vars = {
                                         'type': parent_collection_data['RELS_EXT_hasModel_uri_s'],
                                         'pid': parent_collection_data['PID'],
@@ -357,7 +442,14 @@ def main():
                             for collection in reversed(parents_to_add):
                                 logging.info('Adding collection ' + collection['pid'] + ' to PAWDB')
                                 # print('Adding collection ' + collection['pid'] + ' to PAWDB', file=sys.stdout)
-                                collection_row(collection)  # Add collection to PAWDB
+                                try:
+                                    collection_row(collection)  # Add collection to PAWDB
+                                except Exception as e:
+                                    logging.error('Database insert failed: {}'.format(e))
+                                    logging.error('Ancestor collection of {} not added to PAWDB: '.format(pid)
+                                                  + format(collection_vars['parent']))
+                                    no_ancestor = no_ancestor + 1
+                                    continue
 
                     # Get object vars ready for creating `object` row
                     object_vars = {
@@ -391,7 +483,13 @@ def main():
                     # Insert object row into PAWDB
                     logging.info('Adding object ' + object_vars['pid'] + ' to PAWDB')
                     # print('Adding object ' + object_vars['pid'] + ' to PAWDB', file=sys.stdout)
-                    object_row(object_vars)
+                    try:
+                        object_row(object_vars)
+                    except Exception as e:
+                        logging.error('Database insert failed: {}'.format(e))
+                        logging.error('{} not added to PAWDB'.format(pid))
+                        no_db = no_db + 1
+                        continue
 
                 # If ingest failed, log failure and increase failed count
                 if istat['status'] == 'FAILED':
@@ -406,6 +504,8 @@ def main():
         print(str(reingests) + ' bags to reingest', file=sys.stdout)
         print(str(completed) + ' bags transferred', file=sys.stdout)
         print(str(failed) + ' bags failed', file=sys.stdout)
+        print(str(no_db) + ' objects not added to PAWDB')
+        print(str(no_ancestor) + ' ancestor collections not added to PAWDB')
 
     else:
         print('No bags found in folder', file=sys.stdout)

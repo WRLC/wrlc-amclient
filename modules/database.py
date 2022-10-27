@@ -32,14 +32,10 @@ class Database(object):
             # print('Disconnect from database FAILED {}'.format(e), file=sys.stderr)
 
     def insert_row(self, sql, data=None):
-        try:
-            self.db_cursor.execute(sql, data)
-            self.db_conn.commit()
-            logging.info('Insert row into database SUCCEEDED')
-            # print('Insert row into database SUCCEEDED', file=sys.stdout)
-        except Exception as e:
-            logging.error('Insert row into database FAILED {}'.format(e))
-            # print('Insert row into database FAILED {}'.format(e), file=sys.stderr)
+        self.db_cursor.execute(sql, data)
+        self.db_conn.commit()
+        logging.info('Insert row into database SUCCEEDED')
+        # print('Insert row into database SUCCEEDED', file=sys.stdout)
 
     def sql_select(self, sql, data=None):
         try:
