@@ -5,7 +5,7 @@ import settings
 import amclient
 import requests
 import logging
-from modules.ambaghandling import job_microservices, move_bag
+from modules.ambaghandling import job_microservices, move_bag, pid_name
 from modules.sqlfunctions import get_collection_data, aip_row, collection_row, object_row, get_object
 from modules.apicalls import ss_call, solr_call
 from datetime import datetime
@@ -61,6 +61,8 @@ def main():
     transfer = path + transfer_folder
     processing = path + processing_folder
 
+    pid = None
+
     # Initialize completed and failed counting processed/failed bags
     completed = 0
     failed = 0
@@ -92,10 +94,7 @@ def main():
             if filename.is_file() and filename.name.endswith('.zip'):
 
                 # First check if pid is a reingest
-                pid = filename.name
-                pid = pid.replace('.zip', '')
-                pid = pid.replace('_', ':', 1)
-                pid = pid.replace(settings.INSTITUTION[institution]['inst_code'] + '-', '', 1)
+                pid = pid_name(filename.name, institution)
 
                 reingest = get_object(pid)
 
@@ -106,6 +105,9 @@ def main():
                     continue
                 else:
                     move_bag(transfer + filename.name, 'PROCESSING', filename.name)
+
+            else:
+                continue
 
         scanned_folder = os.scandir(processing)
 
@@ -130,24 +132,37 @@ def main():
                 # Give transfer time to start
                 time.sleep(30)
                 transferring = True
-                logging.info('Transfer Status: PROCESSING')
-                # print('Transfer Status: PROCESSING', file=sys.stdout)
+                tstat = None
+                attempt_exception = 1
+                attempt_none = 1
 
-                tstat = {}
-
+                # Check transfer status until completed or failed:
                 while transferring is True:
                     # Get transfer status
-                    tstat = am.get_transfer_status()
+                    try:
+                        tstat = am.get_transfer_status()
+                    except Exception as e:
+                        # Allow up to three exceptions
+                        if attempt_exception < 3:
+                            logging.warning('Could not get transfer status of ' + am.transfer_name
+                                            + '({}); retrying...'.format(e))
+                            attempt_exception = attempt_exception + 1
+                            time.sleep(30)
+                            continue
+                        else:
+                            transferring = False
 
-                    # If transfer status not found, log error, move bag to failed folder, and increase failed count
-                    if isinstance(tstat, int):
-                        logging.error('Could not get transfer status of ' + am.transfer_name +
-                                      '; check AM MCPServer.log and SS storage_service.log')
-                        # print('Could not get transfer status of ' + am.transfer_name +
-                        #      '; check AM MCPServer.log and SS storage_service.log',
-                        #      file=sys.stderr)
-                        tstat = {'status': 'FAILED'}
-                        transferring = False  # this exits loop
+                    # If transfer status not found, retry up to three times
+                    if isinstance(tstat, int) or tstat is None:
+                        if attempt_none < 3:
+                            logging.warning('Could not get transfer status of ' + am.transfer_name + '; retrying...')
+                            attempt_none = attempt_none + 1
+                            time.sleep(30)
+                            continue
+
+                        # After third retry, end loop
+                        else:
+                            transferring = False
 
                     else:
                         # Check if transfer is complete
@@ -158,7 +173,17 @@ def main():
 
                         # If not complete, keep checking
                         else:
+                            logging.info('Transfer Status: {}'.format(tstat['status']))
                             time.sleep(30)
+                            continue
+
+                # If tstat still an integer or null, status check failed after all retries
+                if isinstance(tstat, int) or tstat is None:
+                    logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
+                    # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
+                    move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                    failed = failed + 1
+                    continue
 
                 # Report status of transfer microservices
                 time.sleep(30)
@@ -177,13 +202,26 @@ def main():
                     failed = failed + 1
                     continue
 
-                # Get SIP UUID
-                try:
-                    am.sip_uuid = tstat['sip_uuid']
-                except KeyError:
-                    time.sleep(30)
-                    tstat = am.get_transfer_status()
-                    am.sip_uuid = tstat['sip_uuid']
+                am.sip_uuid = None
+
+                # Get SIP UUID (up to three tries
+                for i in range(3):
+                    try:
+                        am.sip_uuid = tstat['sip_uuid']
+                    except KeyError:
+                        logging.warning('Unable to retrieve ingest UUID; retrying...')
+                        time.sleep(30)
+                        continue
+                    else:
+                        break
+
+                # If can't get SIP UUID in three tries, transfer failed
+                if am.sip_uuid is None:
+                    logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
+                    # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
+                    move_bag(processing + filename.name, tstat['status'], am.transfer_name)
+                    failed = failed + 1
+                    continue
 
                 logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
                 # print(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid, file=sys.stdout)
@@ -191,23 +229,36 @@ def main():
                 # Give ingest time to start
                 time.sleep(30)
                 ingesting = True
-                logging.info('Ingest Status: PROCESSING')
-                # print('Ingest Status: PROCESSING', file=sys.stdout)
-
-                istat = {}
+                istat = None
+                attempt_exception = 1
+                attempt_none = 1
 
                 while ingesting is True:
                     # Get ingest status
-                    istat = am.get_ingest_status()
+                    try:
+                        istat = am.get_ingest_status()
+                    except Exception as e:
+                        # Allow up to three exceptions
+                        if attempt_exception < 3:
+                            logging.warning('Could not get ingest status of ' + am.transfer_name
+                                            + '({}); retrying...'.format(e))
+                            attempt_exception = attempt_exception + 1
+                            time.sleep(30)
+                            continue
+                        else:
+                            ingesting = False
 
                     # If ingest status not found, log error, move bag to failed folder, and increase failed count
-                    if isinstance(istat, int):
-                        logging.error('Could not get ingest status of ' + am.transfer_name
-                                      + '; check AM MCPServer.log and SS storage_service.log')
-                        # print('Could not get ingest status of ' + am.transfer_name
-                        #      + '; check AM MCPServer.log and SS storage_service.log', file=sys.stderr)
-                        istat['status'] = 'FAILED'  # create artificial failed status for later handling
-                        ingesting = False  # this exits loop
+                    if isinstance(istat, int) or istat is None:
+                        if attempt_none < 3:
+                            logging.warning('Could not get ingest status of ' + am.transfer_name + '; retrying...')
+                            attempt_none = attempt_none + 1
+                            time.sleep(30)
+                            continue
+
+                        # After third retry, end loop
+                        else:
+                            ingesting = False
                     else:
                         # Check if ingest is complete
                         if istat['status'] == 'COMPLETE' or istat['status'] == 'FAILED':
@@ -218,6 +269,15 @@ def main():
                         # If not complete, keep checking
                         else:
                             time.sleep(30)
+                            continue
+
+                # If istat still an integer or null, status check failed after all retries
+                if isinstance(istat, int) or istat is None:
+                    logging.error('Ingest of ' + am.transfer_uuid + ' FAILED')
+                    # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
+                    move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                    failed = failed + 1
+                    continue
 
                 # Report status of ingest microservices
                 time.sleep(30)
@@ -264,12 +324,8 @@ def main():
                         no_db = no_db + 1
                         continue
 
-                    # Make API call to Islandora Solr for ingested AIP/Islandora Object
-                    # TODO: replace rightmost _ with :
-                    # TODO: replace remaining _ with -
-                    pid = am.transfer_name
-                    pid = pid.replace('.zip', '')
-                    pid = pid.replace('_', ':', 1)
+                    if pid is None:
+                        pid = pid_name(filename.name, institution)
 
                     aip_solr = solr_call(pid, institution)
                     logging.info('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB')
