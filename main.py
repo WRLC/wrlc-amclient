@@ -306,6 +306,7 @@ def main():
                     if aip_ss is None:
                         logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
                         logging.error('{} not added to PAWDB'.format(am.transfer_name))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
@@ -322,11 +323,11 @@ def main():
                     else:
                         logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
                         logging.error('{} not added to PAWDB'.format(am.transfer_name))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
-                    if pid is None:
-                        pid = pid_name(filename.name, institution)
+                    pid = pid_name(filename.name, institution)
 
                     aip_solr = solr_call(pid, institution)
                     logging.info('Adding AIP ' + aip_vars['uuid'] + ' to PAWDB')
@@ -336,6 +337,7 @@ def main():
                     except Exception as e:
                         logging.error('Database insert failed: {}'.format(e))
                         logging.error('{} not added to PAWDB'.format(pid))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
@@ -345,6 +347,7 @@ def main():
                             # print('Solr query error: No PID found matching ' + pid, file=sys.stderr)
                             logging.error('Solr query error: No PID found matching ' + pid)
                             logging.error('{} not added to PAWDB'.format(pid))
+                            move_bag(processing + filename.name, istat['status'], am.transfer_name)
                             no_db = no_db + 1
                             continue
 
@@ -352,6 +355,7 @@ def main():
                             # print('Solr query error: More than on PID found matching ' + pid, file=sys.stderr)
                             logging.error('Solr query error: More than on PID found matching ' + pid)
                             logging.error('{} not added to PAWDB'.format(pid))
+                            move_bag(processing + filename.name, istat['status'], am.transfer_name)
                             no_db = no_db + 1
                             continue
                         else:
@@ -360,6 +364,7 @@ def main():
                         # print('Solr query error: Unable to retrieve data for ' + pid, file=sys.stderr)
                         logging.error('Solr query error: Unable to retrieve data for ' + pid)
                         logging.error('{} not added to PAWDB'.format(pid))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
@@ -368,6 +373,7 @@ def main():
                         pid_data = aip_solr['response']['docs'][0]
                     except Exception as e:
                         logging.error(format(e))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
@@ -399,6 +405,7 @@ def main():
                                     parent.replace('info:fedora/', '')
                                 ))
                                 logging.error('{} not added to PAWDB'.format(pid))
+                                move_bag(processing + filename.name, istat['status'], am.transfer_name)
                                 no_db = no_db + 1
                                 continue
 
@@ -407,6 +414,7 @@ def main():
                                     parent.replace('info:fedora/', '')
                                 ))
                                 logging.error('{} not added to PAWDB'.format(pid))
+                                move_bag(processing + filename.name, istat['status'], am.transfer_name)
                                 no_db = no_db + 1
                                 continue
                             else:
@@ -417,6 +425,7 @@ def main():
                                 parent.replace('info:fedora/', '')
                             ))
                             logging.error('{} not added to PAWDB'.format(pid))
+                            move_bag(processing + filename.name, istat['status'], am.transfer_name)
                             no_db = no_db + 1
                             continue
 
@@ -548,6 +557,7 @@ def main():
                     except Exception as e:
                         logging.error('Database insert failed: {}'.format(e))
                         logging.error('{} not added to PAWDB'.format(pid))
+                        move_bag(processing + filename.name, istat['status'], am.transfer_name)
                         no_db = no_db + 1
                         continue
 
