@@ -174,7 +174,7 @@ def main():
                         # If not complete, keep checking
                         else:
                             logging.info('Transfer Status: {}'.format(tstat['status']))
-                            time.sleep(30)
+                            time.sleep(10)
                             continue
 
                 # If tstat still an integer or null, status check failed after all retries
@@ -268,7 +268,8 @@ def main():
 
                         # If not complete, keep checking
                         else:
-                            time.sleep(30)
+                            logging.info('Ingest Status: {}'.format(istat['status']))
+                            time.sleep(10)
                             continue
 
                 # If istat still an integer or null, status check failed after all retries
@@ -390,7 +391,7 @@ def main():
                     if check_parent_type:
 
                         # Make API call for parent data
-                        parent_data = solr_call(parent.replace('info:fedora/', ''), institution)['response']['docs'][0]
+                        parent_data = solr_call(parent.replace('info:fedora/', ''), institution)
 
                         if parent_data is not None:
                             if parent_data['response']['numFound'] == 0:
@@ -419,6 +420,7 @@ def main():
                             no_db = no_db + 1
                             continue
 
+                        parent_data = parent_data['response']['docs'][0]
                         parent_vars = {
                             'type': parent_data['RELS_EXT_hasModel_uri_s'],
                             'pid': parent_data['PID'],
@@ -450,7 +452,7 @@ def main():
 
                                     # Get collection's parent info for next time through loop
                                     parent_collection_data = solr_call(
-                                        collection_vars['parent'], institution)['response']['docs'][0]
+                                        collection_vars['parent'], institution)
 
                                     if parent_collection_data is not None:
                                         if parent_collection_data['response']['numFound'] == 0:
@@ -462,7 +464,7 @@ def main():
                                             no_ancestor = no_ancestor + 1
                                             continue
 
-                                        elif parent_data['response']['numFound'] > 1:
+                                        elif parent_collection_data['response']['numFound'] > 1:
                                             logging.error('Solr query error: More than on PID found matching {}'.format(
                                                 collection_vars['parent']
                                             ))
@@ -480,6 +482,8 @@ def main():
                                                       + format(collection_vars['parent']))
                                         no_ancestor = no_ancestor + 1
                                         continue
+
+                                    parent_collection_data = parent_collection_data['response']['docs'][0]
                                     collection_vars = {
                                         'type': parent_collection_data['RELS_EXT_hasModel_uri_s'],
                                         'pid': parent_collection_data['PID'],

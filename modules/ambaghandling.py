@@ -73,7 +73,7 @@ def move_bag(file, status, filename):
 
 
 def pid_name(bag, institution):
-    pid = bag.name
+    pid = bag
     pid = pid.replace('.zip', '')
     pid = ':'.join(pid.rsplit('_', 1))
     pid = pid.replace(settings.INSTITUTION[institution]['inst_code'] + '-', '', 1)
