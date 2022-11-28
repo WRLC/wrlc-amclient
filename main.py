@@ -61,9 +61,8 @@ def main():
     transfer = path + transfer_folder
     processing = path + processing_folder
 
-    pid = None
-
     # Initialize completed and failed counting processed/failed bags
+    create_error = 0
     completed = 0
     failed = 0
     reingests = 0
@@ -122,7 +121,42 @@ def main():
                 # print('Transferring bag ' + am.transfer_name, file=sys.stdout)
 
                 # Start transfer
-                package = am.create_package()
+                try:
+                    package = am.create_package()
+                    package.raise_for_status()
+                except Exception as e:
+                    logging.error('Error on create_package() API call: {}'.format(e))
+                    create_error = create_error + 1
+                    move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                    failed = failed + 1
+
+                    # If 3rd consecutive error, terminate script
+                    if create_error == 3:
+                        logging.error('Terminating script: create_package() failed three times in a row')
+                        raise SystemExit('Terminating script: create_package() failed three times in a row')
+
+                    # Otherwise, move on to next bag
+                    else:
+                        continue
+
+                # If no error returned on create_package(), but package is null or an int, treat as error
+                if isinstance(int, package) or package is None:
+                    logging.error('Error on create_package() API call')
+                    create_error = create_error + 1
+                    move_bag(processing + filename.name, 'FAILED', am.transfer_name)
+                    failed = failed + 1
+
+                    # If 3rd consecutive error, terminate script
+                    if create_error == 3:
+                        logging.error('Terminating script: create_package() failed three times in a row')
+                        raise SystemExit('Terminating script: create_package() failed three times in a row')
+
+                    # Otherwise, move on to next bag
+                    else:
+                        continue
+
+                # If create_package succeeds, reset create_error count to 0
+                create_error = 0
 
                 # Get transfer UUID
                 am.transfer_uuid = package['id']
