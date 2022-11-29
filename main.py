@@ -244,6 +244,10 @@ def main():
                     except KeyError:
                         logging.warning('Unable to retrieve ingest UUID; retrying...')
                         time.sleep(30)
+                        try:
+                            tstat = am.get_transfer_status()
+                        except Exception as e:
+                            logging.warning('Unable to re-retrieve transfer status: {}'.format(e))
                         continue
                     else:
                         break
