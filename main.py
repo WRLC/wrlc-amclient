@@ -123,7 +123,6 @@ def main():
                 # Start transfer
                 try:
                     package = am.create_package()
-                    package.raise_for_status()
                 except Exception as e:
                     logging.error('Error on create_package() API call: {}'.format(e))
                     create_error = create_error + 1
@@ -140,7 +139,7 @@ def main():
                         continue
 
                 # If no error returned on create_package(), but package is null or an int, treat as error
-                if isinstance(int, package) or package is None:
+                if isinstance(package, int) or package is None:
                     logging.error('Error on create_package() API call')
                     create_error = create_error + 1
                     move_bag(processing + filename.name, 'FAILED', am.transfer_name)
