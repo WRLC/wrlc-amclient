@@ -42,6 +42,15 @@ transfer_folder = '/' + institution + 'islandora/transfer/'  # this is the direc
 processing_folder = '/' + institution + 'islandora/processing/'  # this is the directory for active transfers
 
 
+def output_counts(stats):
+    # Output final count of completed and failed bags
+    print(str(stats['reingests']) + ' bags to reingest', file=sys.stdout)
+    print(str(stats['completed']) + ' bags transferred', file=sys.stdout)
+    print(str(stats['failed']) + ' bags failed', file=sys.stdout)
+    print(str(stats['no_db']) + ' objects not added to PAWDB')
+    print(str(stats['no_ancestor']) + ' ancestor collections not added to PAWDB')
+
+
 def main():
     # Iterate through the transfer folder for zipped bags
 
@@ -62,12 +71,14 @@ def main():
     processing = path + processing_folder
 
     # Initialize completed and failed counting processed/failed bags
-    create_error = 0
-    completed = 0
-    failed = 0
-    reingests = 0
-    no_db = 0
-    no_ancestor = 0
+    stats = {
+        'create_error': 0,
+        'completed': 0,
+        'failed': 0,
+        'reingests': 0,
+        'no_db': 0,
+        'no_ancestor': 0,
+    }
 
     # Check transfer folder for zipped bags
     if any(File.endswith('.zip') for File in os.listdir(transfer)):
@@ -100,7 +111,7 @@ def main():
                 # If it is a reingest, move bag to reingest folder and don't process it
                 if len(reingest) > 0:
                     move_bag(transfer + filename.name, 'REINGEST', filename.name)
-                    reingests = reingests + 1
+                    stats['reingests'] = stats['reingests'] + 1
                     continue
                 else:
                     move_bag(transfer + filename.name, 'PROCESSING', filename.name)
@@ -125,13 +136,26 @@ def main():
                     package = am.create_package()
                 except Exception as e:
                     logging.error('Error on create_package() API call: {}'.format(e))
-                    create_error = create_error + 1
+                    stats['create_error'] = stats['create_error'] + 1
                     move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
 
                     # If 3rd consecutive error, terminate script
-                    if create_error == 3:
+                    if stats['create_error'] == 3:
+
+                        # log termination
                         logging.error('Terminating script: create_package() failed three times in a row')
+
+                        # move remaining bags from processing to reingest
+                        for remaining_file in scanned_folder:
+                            move_bag(transfer + remaining_file.name, 'REINGEST', remaining_file.name)
+                            stats['reingests'] = stats['reingests'] + 1
+                            continue
+
+                        # stat counts to stdout
+                        output_counts(stats)
+
+                        # terminate script
                         raise SystemExit('Terminating script: create_package() failed three times in a row')
 
                     # Otherwise, move on to next bag
@@ -141,13 +165,26 @@ def main():
                 # If no error returned on create_package(), but package is null or an int, treat as error
                 if isinstance(package, int) or package is None:
                     logging.error('Error on create_package() API call')
-                    create_error = create_error + 1
+                    stats['create_error'] = stats['create_error'] + 1
                     move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
 
                     # If 3rd consecutive error, terminate script
-                    if create_error == 3:
+                    if stats['create_error'] == 3:
+
+                        # log termination
                         logging.error('Terminating script: create_package() failed three times in a row')
+
+                        # move remaining bags from processing to reingest
+                        for remaining_file in scanned_folder:
+                            move_bag(transfer + remaining_file.name, 'REINGEST', remaining_file.name)
+                            stats['reingests'] = stats['reingests'] + 1
+                            continue
+
+                        # stat counts to stdout
+                        output_counts(stats)
+
+                        # terminate script
                         raise SystemExit('Terminating script: create_package() failed three times in a row')
 
                     # Otherwise, move on to next bag
@@ -155,7 +192,7 @@ def main():
                         continue
 
                 # If create_package succeeds, reset create_error count to 0
-                create_error = 0
+                stats['create_error'] = 0
 
                 # Get transfer UUID
                 am.transfer_uuid = package['id']
@@ -215,7 +252,7 @@ def main():
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
                     # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
                     move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
                     continue
 
                 # Report status of transfer microservices
@@ -232,7 +269,7 @@ def main():
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
                     # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
                     move_bag(processing + filename.name, tstat['status'], am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
                     continue
 
                 am.sip_uuid = None
@@ -257,7 +294,7 @@ def main():
                     logging.error('Transfer of ' + am.transfer_uuid + ' FAILED')
                     # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
                     move_bag(processing + filename.name, tstat['status'], am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
                     continue
 
                 logging.info(am.transfer_name + ' assigned ingest UUID: ' + am.sip_uuid)
@@ -314,7 +351,7 @@ def main():
                     logging.error('Ingest of ' + am.transfer_uuid + ' FAILED')
                     # print('Transfer of ' + am.transfer_uuid + ' FAILED', file=sys.stderr)
                     move_bag(processing + filename.name, 'FAILED', am.transfer_name)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
                     continue
 
                 # Report status of ingest microservices
@@ -331,7 +368,7 @@ def main():
                     )
                     # print('AIP URI for ' + am.transfer_name + ': ' + settings.am_pub_url +
                     #      '/archival-storage/' + am.sip_uuid, file=sys.stdout)
-                    completed = completed + 1
+                    stats['completed'] = stats['completed'] + 1
 
                     # On completion, log in pawdb
                     now = datetime.now()
@@ -344,7 +381,7 @@ def main():
                         logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
                         logging.error('{} not added to PAWDB'.format(am.transfer_name))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                     # Verify SS response is valid
@@ -361,7 +398,7 @@ def main():
                         logging.error('Unable to retrieve AIP {} from SS'.format(am.sip_uuid))
                         logging.error('{} not added to PAWDB'.format(am.transfer_name))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                     pid = pid_name(filename.name, institution)
@@ -375,7 +412,7 @@ def main():
                         logging.error('Database insert failed: {}'.format(e))
                         logging.error('{} not added to PAWDB'.format(pid))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                     # Verify Islandora response is valid
@@ -385,7 +422,7 @@ def main():
                             logging.error('Solr query error: No PID found matching ' + pid)
                             logging.error('{} not added to PAWDB'.format(pid))
                             move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                            no_db = no_db + 1
+                            stats['no_db'] = stats['no_db'] + 1
                             continue
 
                         elif aip_solr['response']['numFound'] > 1:
@@ -393,7 +430,7 @@ def main():
                             logging.error('Solr query error: More than on PID found matching ' + pid)
                             logging.error('{} not added to PAWDB'.format(pid))
                             move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                            no_db = no_db + 1
+                            stats['no_db'] = stats['no_db'] + 1
                             continue
                         else:
                             pass
@@ -402,7 +439,7 @@ def main():
                         logging.error('Solr query error: Unable to retrieve data for ' + pid)
                         logging.error('{} not added to PAWDB'.format(pid))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                     # Get object data from Islandora response
@@ -411,7 +448,7 @@ def main():
                     except Exception as e:
                         logging.error(format(e))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                     # Get object's parent
@@ -443,7 +480,7 @@ def main():
                                 ))
                                 logging.error('{} not added to PAWDB'.format(pid))
                                 move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                                no_db = no_db + 1
+                                stats['no_db'] = stats['no_db'] + 1
                                 continue
 
                             elif parent_data['response']['numFound'] > 1:
@@ -452,7 +489,7 @@ def main():
                                 ))
                                 logging.error('{} not added to PAWDB'.format(pid))
                                 move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                                no_db = no_db + 1
+                                stats['no_db'] = stats['no_db'] + 1
                                 continue
                             else:
                                 pass
@@ -463,7 +500,7 @@ def main():
                             ))
                             logging.error('{} not added to PAWDB'.format(pid))
                             move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                            no_db = no_db + 1
+                            stats['no_db'] = stats['no_db'] + 1
                             continue
 
                         parent_data = parent_data['response']['docs'][0]
@@ -507,7 +544,7 @@ def main():
                                             ))
                                             logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
                                                           + format(collection_vars['parent']))
-                                            no_ancestor = no_ancestor + 1
+                                            stats['no_ancestor'] = stats['no_ancestor'] + 1
                                             continue
 
                                         elif parent_collection_data['response']['numFound'] > 1:
@@ -516,7 +553,7 @@ def main():
                                             ))
                                             logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
                                                           + format(collection_vars['parent']))
-                                            no_ancestor = no_ancestor + 1
+                                            stats['no_ancestor'] = stats['no_ancestor'] + 1
                                             continue
                                         else:
                                             pass
@@ -526,7 +563,7 @@ def main():
                                         ))
                                         logging.error('Ancestor of {} not added to PAWDB: '.format(pid)
                                                       + format(collection_vars['parent']))
-                                        no_ancestor = no_ancestor + 1
+                                        stats['no_ancestor'] = stats['no_ancestor'] + 1
                                         continue
 
                                     parent_collection_data = parent_collection_data['response']['docs'][0]
@@ -554,7 +591,7 @@ def main():
                                     logging.error('Database insert failed: {}'.format(e))
                                     logging.error('Ancestor collection of {} not added to PAWDB: '.format(pid)
                                                   + format(collection_vars['parent']))
-                                    no_ancestor = no_ancestor + 1
+                                    stats['no_ancestor'] = stats['no_ancestor'] + 1
                                     continue
 
                     # Get object vars ready for creating `object` row
@@ -595,24 +632,20 @@ def main():
                         logging.error('Database insert failed: {}'.format(e))
                         logging.error('{} not added to PAWDB'.format(pid))
                         move_bag(processing + filename.name, istat['status'], am.transfer_name)
-                        no_db = no_db + 1
+                        stats['no_db'] = stats['no_db'] + 1
                         continue
 
                 # If ingest failed, log failure and increase failed count
                 if istat['status'] == 'FAILED':
                     logging.error('Ingest of ' + am.sip_uuid + 'FAILED')
                     # print('Ingest of ' + am.sip_uuid + 'FAILED', file=sys.stderr)
-                    failed = failed + 1
+                    stats['failed'] = stats['failed'] + 1
                 # Move bag to completed/failed folder
                 if istat['status'] == 'FAILED' or istat['status'] == 'COMPLETE':
                     move_bag(processing + filename.name, istat['status'], am.transfer_name)
 
         # Output final count of completed and failed bags
-        print(str(reingests) + ' bags to reingest', file=sys.stdout)
-        print(str(completed) + ' bags transferred', file=sys.stdout)
-        print(str(failed) + ' bags failed', file=sys.stdout)
-        print(str(no_db) + ' objects not added to PAWDB')
-        print(str(no_ancestor) + ' ancestor collections not added to PAWDB')
+        output_counts(stats)
 
     else:
         print('No bags found in folder', file=sys.stdout)
