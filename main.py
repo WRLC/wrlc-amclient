@@ -177,7 +177,7 @@ def main():
 
                         # move remaining bags from processing to reingest
                         for remaining_file in scanned_folder:
-                            move_bag(transfer + remaining_file.name, 'REINGEST', remaining_file.name)
+                            move_bag(processing + remaining_file.name, 'REINGEST', remaining_file.name)
                             stats['reingests'] = stats['reingests'] + 1
                             continue
 
