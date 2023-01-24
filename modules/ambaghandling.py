@@ -64,6 +64,8 @@ def move_bag(file, status, filename):
     source = 'processing'
     if status == 'COMPLETE':
         status_str = status_str + 'd'
+    elif status == 'REINGEST-PROCESSING':
+        status_str = 'reingest'
     elif status == 'PROCESSING' or status == 'REINGEST':
         source = 'transfer'
     dest_path = file.replace('/' + source + '/', '/' + status_str + '/')
