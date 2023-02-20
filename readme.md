@@ -40,3 +40,16 @@ If the transfer and/or ingest status ends as `COMPLETE`, any failed microservice
 If the transfer and/or ingest status ends as `FAILED`, the transfer/ingest failure will be marked as an `ERROR`, as will any failed microservices.
 
 The script will only generate one log file per execution, so if the transfer source has more than one bag in it, logs for all bags transferred/ingested will be included in one log.
+
+## Managing the Virtual Environment
+
+If requirements.txt changes (eg. due to dependabot security notices), install requirements as above:
+
+`source venv/bin/activate`  
+`pip install -r requirements.txt`
+`deactivate`
+
+If you need to rebuild the venv:
+
+`rm -r venv`
+`python3 -m venv venv`
