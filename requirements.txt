@@ -2,7 +2,7 @@ amclient==1.2.3
 certifi==2023.7.22
 chardet==5.1.0
 charset-normalizer==3.0.1
-idna==3.4
+idna==3.7
 mysql-connector-python==8.0.32
 protobuf==3.20.2
 requests==2.31.0
